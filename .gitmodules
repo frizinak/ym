@@ -1,0 +1,24 @@
+[submodule "vendor/github.com/rylio/ytdl"]
+	path = vendor/github.com/rylio/ytdl
+	url = https://github.com/rylio/ytdl
+[submodule "vendor/github.com/PuerkitoBio/goquery"]
+	path = vendor/github.com/PuerkitoBio/goquery
+	url = https://github.com/PuerkitoBio/goquery
+[submodule "vendor/github.com/Sirupsen/logrus"]
+	path = vendor/github.com/Sirupsen/logrus
+	url = https://github.com/Sirupsen/logrus
+[submodule "vendor/github.com/andybalholm/cascadia"]
+	path = vendor/github.com/andybalholm/cascadia
+	url = https://github.com/andybalholm/cascadia
+[submodule "vendor/golang.org/x/net"]
+	path = vendor/golang.org/x/net
+	url = https://go.googlesource.com/net
+[submodule "vendor/golang.org/x/crypto"]
+	path = vendor/golang.org/x/crypto
+	url = https://go.googlesource.com/crypto
+[submodule "vendor/golang.org/x/sys"]
+	path = vendor/golang.org/x/sys
+	url = https://go.googlesource.com/sys
+[submodule "vendor/github.com/mattn/go-runewidth"]
+	path = vendor/github.com/mattn/go-runewidth
+	url = https://github.com/mattn/go-runewidth
