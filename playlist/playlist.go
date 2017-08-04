@@ -11,22 +11,21 @@ import (
 type Playlist struct {
 	list []*command.Command
 	sem  sync.Mutex
-	d    chan *command.Command
+	d    chan struct{}
+	i    int
 }
 
 func New(size int) *Playlist {
 	return &Playlist{
 		list: make([]*command.Command, 0, size),
-		d:    make(chan *command.Command, 0),
+		d:    make(chan struct{}, 0),
 	}
 }
 
 func (p *Playlist) Add(cmd *command.Command) {
 	p.sem.Lock()
 	select {
-	case p.d <- cmd:
-		p.sem.Unlock()
-		return
+	case p.d <- struct{}{}:
 	default:
 	}
 
@@ -65,18 +64,48 @@ func (p *Playlist) ResultList() []search.Result {
 func (p *Playlist) Truncate() {
 	p.sem.Lock()
 	p.list = make([]*command.Command, 0, cap(p.list))
+	p.i = 0
 	p.sem.Unlock()
 }
 
-func (p *Playlist) Pop() *command.Command {
+func (p *Playlist) Read() *command.Command {
 	p.sem.Lock()
-	if len(p.list) == 0 {
+	if p.i >= len(p.list) {
 		p.sem.Unlock()
-		return <-p.d
+		<-p.d
+		return p.Read()
 	}
 
-	r := p.list[0]
-	p.list = p.list[1:]
+	r := p.list[p.i]
+	p.i++
 	p.sem.Unlock()
 	return r
+}
+
+func (p *Playlist) Prev() {
+	p.sem.Lock()
+
+	select {
+	case p.d <- struct{}{}:
+		p.i = len(p.list) - 1
+	default:
+		if p.i <= len(p.list) {
+			p.i--
+		}
+
+		p.i -= 1
+	}
+
+	if p.i < 0 {
+		p.i = 0
+	}
+
+	p.sem.Unlock()
+}
+
+func (p *Playlist) Index() int {
+	p.sem.Lock()
+	i := p.i
+	p.sem.Unlock()
+	return i
 }

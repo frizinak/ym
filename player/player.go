@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	CMD_PAUSE Command = iota
+	CMD_NIL Command = iota
+	CMD_PAUSE
 	CMD_STOP
 	CMD_NEXT
 	CMD_PREV
