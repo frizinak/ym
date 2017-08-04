@@ -39,9 +39,9 @@ func main() {
 		dls, _ = cache.New(cacheDir, path.Join(os.TempDir(), "ym"))
 	}
 
-	playlist := playlist.New(100)
+	pl := playlist.New(100)
 	ym := ym.New(
-		playlist,
+		pl,
 		yt,
 		p,
 		dls,
@@ -62,23 +62,41 @@ func main() {
 
 	playChan := make(chan *command.Command, 2000)
 	currentChan := make(chan search.Result, 0)
-	cacheChan := make(chan search.Result, 2000)
-	infoChan := make(chan search.Info, 0)
-	go func() {
 
-		if err := ym.Play(playChan, currentChan); err != nil {
+	statusChan := make(chan string, 0)
+	go func() {
+		if err := ym.Play(playChan, currentChan, statusChan); err != nil {
 			panic(err)
 		}
 	}()
 
-	statusChan := make(chan string, 0)
-	resultsChan := make(chan []search.Result, 0)
 	terminal.Clear()
-	go printStatus(statusChan, currentChan)
+
+	titleChan := make(chan string, 0)
+	statusCurrentChan := make(chan search.Result, 0)
+	go printStatus(titleChan, statusCurrentChan, statusChan)
+
+	resultsChan := make(chan []search.Result, 0)
 	go printResults(resultsChan)
+
+	infoChan := make(chan search.Info, 0)
 	go printInfo(infoChan)
+
+	playlistChan := make(chan struct{}, 0)
+	go printPlaylist(pl, playlistChan)
+
 	view := "results"
 
+	go func() {
+		for r := range currentChan {
+			statusCurrentChan <- r
+			if view == "playlist" {
+				playlistChan <- struct{}{}
+			}
+		}
+	}()
+
+	cacheChan := make(chan search.Result, 2000)
 	go func() {
 		for entry := range cacheChan {
 			if dls.Get(entry.ID()) != nil {
@@ -97,7 +115,7 @@ func main() {
 	for {
 		if view == "results" {
 			title, r := history.Current()
-			statusChan <- title
+			titleChan <- title
 			resultsChan <- r
 		}
 
@@ -114,21 +132,26 @@ func main() {
 		cmd = cmds[0]
 		cmds = cmds[1:]
 
-		if view != "results" {
+		if view != "results" && view != "playlist" {
 			view = "results"
 			continue
 		}
 
 		if cmd.Cmd() == ':' {
 			switch cmd.Arg() {
-			case "list", "queue":
-				history.Write("Queued:", playlist.ResultList())
+			case "list", "queue", "playlist":
+				view = "playlist"
+				playlistChan <- struct{}{}
 				continue
 			}
 		}
 
 		switch cmd.Arg() {
 		case "<", "back":
+			if view == "playlist" {
+				view = "results"
+				continue
+			}
 			history.Back()
 			continue
 		case ">", "forward":
@@ -137,6 +160,7 @@ func main() {
 		}
 
 		if !cmd.Equal(ocmd) && !cmd.IsChoice() && !cmd.IsCmd() {
+			view = "results"
 			r, err := ym.ExecSearch(cmd.Arg())
 			if err != nil {
 				panic(err)
@@ -149,6 +173,11 @@ func main() {
 		choice := cmd.Choice()
 		_, cur := history.Current()
 		if choice > 0 && choice <= len(cur) {
+			if view != "results" {
+				view = "results"
+				continue
+			}
+
 			r := cur[choice-1]
 			if r.IsPlayList() {
 				if cur, err = r.PlaylistResults(); err != nil {

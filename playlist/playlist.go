@@ -10,7 +10,7 @@ import (
 // Playlist is thread safe
 type Playlist struct {
 	list []*command.Command
-	sem  sync.Mutex
+	sem  sync.RWMutex
 	d    chan struct{}
 	i    int
 }
@@ -34,22 +34,22 @@ func (p *Playlist) Add(cmd *command.Command) {
 }
 
 func (p *Playlist) List() []*command.Command {
-	p.sem.Lock()
+	p.sem.RLock()
 	r := make([]*command.Command, len(p.list))
 	copy(r, p.list)
-	p.sem.Unlock()
+	p.sem.RUnlock()
 	return r
 }
 
 func (p *Playlist) Length() int {
-	p.sem.Lock()
+	p.sem.RLock()
 	l := len(p.list)
-	p.sem.Unlock()
+	p.sem.RUnlock()
 	return l
 }
 
 func (p *Playlist) ResultList() []search.Result {
-	p.sem.Lock()
+	p.sem.RLock()
 	r := make([]search.Result, 0, len(p.list))
 	for i := range p.list {
 		res := p.list[i].Result()
@@ -57,8 +57,37 @@ func (p *Playlist) ResultList() []search.Result {
 			r = append(r, res)
 		}
 	}
-	p.sem.Unlock()
+	p.sem.RUnlock()
 	return r
+}
+
+func (p *Playlist) Surrounding(amount int) (int, []search.Result) {
+	p.sem.RLock()
+	r := make([]search.Result, 0, amount)
+	ix := p.Index()
+	offset := ix - amount/2
+	if offset < 0 {
+		offset = 0
+	}
+	ix -= offset
+
+	for {
+		if offset >= len(p.list) {
+			break
+		}
+		res := p.list[offset].Result()
+		if res != nil {
+			r = append(r, res)
+		}
+
+		offset++
+		if len(r) == amount {
+			break
+		}
+	}
+
+	p.sem.RUnlock()
+	return ix, r
 }
 
 func (p *Playlist) Truncate() {
@@ -104,8 +133,8 @@ func (p *Playlist) Prev() {
 }
 
 func (p *Playlist) Index() int {
-	p.sem.Lock()
-	i := p.i
-	p.sem.Unlock()
+	p.sem.RLock()
+	i := p.i - 1
+	p.sem.RUnlock()
 	return i
 }

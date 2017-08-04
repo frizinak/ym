@@ -7,12 +7,14 @@ import (
 	runewidth "github.com/mattn/go-runewidth"
 
 	"github.com/frizinak/ym/command"
+	"github.com/frizinak/ym/playlist"
 	"github.com/frizinak/ym/search"
 	"github.com/frizinak/ym/terminal"
 )
 
-func printStatus(q <-chan string, r <-chan search.Result) {
+func printStatus(q <-chan string, r <-chan search.Result, s <-chan string) {
 	query := "-"
+	status := "-"
 	var result search.Result
 
 	print := func() {
@@ -26,14 +28,27 @@ func printStatus(q <-chan string, r <-chan search.Result) {
 			query = "-"
 		}
 
-		query = fmt.Sprintf(" %s ", query)
+		left := fmt.Sprintf(" %s ", strings.TrimSpace(query))
+		right := fmt.Sprintf(" %s: %s ", status, title)
+		lw := runewidth.StringWidth(left)
+		rw := runewidth.StringWidth(right)
+		diff := lw + rw - w + 10
+		if diff > 0 {
+			title = runewidth.Truncate(
+				title,
+				runewidth.StringWidth(title)-diff-1,
+				"…",
+			)
+			right = fmt.Sprintf(" %s: %s ", status, title)
+		}
+
 		fmt.Printf(
 			fmt.Sprintf(
-				"\033[s\033[0;0f\033[K\033[1;41m%s%%%ds\033[0m\n\033[u",
-				query,
-				w-2-runewidth.StringWidth(query),
+				"\033[0;0f\033[K\033[1;41m%s%%%ds\033[0m\n\033[u",
+				left,
+				w-2-lw,
 			),
-			fmt.Sprintf(" Playing: %s ", title),
+			right,
 		)
 	}
 
@@ -43,13 +58,15 @@ func printStatus(q <-chan string, r <-chan search.Result) {
 			print()
 		case result = <-r:
 			print()
+		case status = <-s:
+			print()
 		}
 	}
 }
 
 func printResults(c <-chan []search.Result) {
 	for results := range c {
-		_, h := terminal.Dimensions()
+		w, h := terminal.Dimensions()
 		h -= 3
 		amount := len(results)
 		if h < amount {
@@ -63,22 +80,49 @@ func printResults(c <-chan []search.Result) {
 				labels = append(labels, "\033[30;42m list \033[0m ")
 			}
 
+			lbls := strings.Join(labels, " ")
 			fmt.Printf(
-				"\033[%d;0f\033[K\033[1;41m %02d) \033[0m %s%s\n",
+				"\033[%d;0f\033[K\033[1;41m %02d \033[0m %s%s\n",
 				i+2,
 				i+1,
 				strings.Join(labels, " "),
-				results[i].Title(),
+				runewidth.Truncate(
+					results[i].Title(),
+					w-runewidth.StringWidth(lbls)-5,
+					"…",
+				),
 			)
 		}
 
-		for i := amount; i < h+1; i++ {
+		clearAndPrompt(amount, h+1)
+	}
+}
+
+func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
+	for range c {
+		w, h := terminal.Dimensions()
+		h -= 3
+		ix, results := pl.Surrounding(h)
+
+		fmt.Printf("\033[2;0f\033[K")
+		for i := range results {
+			title := runewidth.Truncate(
+				results[i].Title(),
+				w-1,
+				"…",
+			)
+			if ix == i {
+				title = fmt.Sprintf("\033[30;42m%s\033[0m", title)
+			}
+
 			fmt.Printf(
-				"\033[s\033[%d;0f\033[K\033[u",
+				"\033[%d;0f\033[K\033[0m %s\n",
 				i+2,
+				title,
 			)
 		}
-		fmt.Printf("> ")
+
+		clearAndPrompt(len(results), h+1)
 	}
 }
 
@@ -119,19 +163,23 @@ func printInfo(c <-chan search.Info) {
 		for j, f := range items {
 			fmt.Printf(
 				"\033[%d;0f\033[K %s\n",
-				j+2,
+				j+3,
 				f,
 			)
 		}
 
-		for i := len(items); i < h+1; i++ {
-			fmt.Printf(
-				"\033[s\033[%d;0f\033[K\033[u",
-				i+2,
-			)
-		}
-		fmt.Printf("> ")
+		clearAndPrompt(len(items), h+1)
 	}
+}
+
+func clearAndPrompt(from, til int) {
+	for i := from; i < til; i++ {
+		fmt.Printf(
+			"\033[%d;0f\033[K",
+			i+2,
+		)
+	}
+	fmt.Printf("\033[%d:0f> \033[K\033[s\n\033[K\033[u", til)
 }
 
 func prompt() ([]*command.Command, error) {

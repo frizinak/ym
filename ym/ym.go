@@ -128,6 +128,7 @@ func (ym *YM) Listen() error {
 func (ym *YM) Play(
 	queue <-chan *command.Command,
 	current chan<- search.Result,
+	status chan<- string,
 ) error {
 	var commands chan player.Command
 	var sem sync.Mutex
@@ -171,6 +172,7 @@ func (ym *YM) Play(
 			sem.Lock()
 			commands, wait, err = ym.player.Spawn(file, params)
 			sem.Unlock()
+			status <- "Playing"
 			current <- result
 			ym.current = result
 			ym.state = "play"
@@ -181,6 +183,7 @@ func (ym *YM) Play(
 
 			wait()
 			ym.state = "stop"
+			status <- "Stopped"
 		}
 	}()
 
@@ -206,7 +209,14 @@ func (ym *YM) Play(
 					ym.playlist.Truncate()
 				case strings.HasPrefix("pause", cmd.Arg()):
 					c = player.CMD_PAUSE
-					ym.state = "pause"
+					switch ym.state {
+					case "pause":
+						status <- "Playing"
+						ym.state = "play"
+					case "play":
+						status <- "Paused"
+						ym.state = "pause"
+					}
 				}
 
 				if c != player.CMD_NIL {
