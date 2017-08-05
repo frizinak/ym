@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"os"
 	"os/user"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/frizinak/ym/audio"
 	"github.com/frizinak/ym/cache"
 	"github.com/frizinak/ym/command"
 	"github.com/frizinak/ym/history"
@@ -31,25 +33,16 @@ func getPlaylist(cacheDir string) (*playlist.Playlist, error) {
 	pl := playlist.New(f, 100)
 	if e {
 		if err := pl.Load(); err != nil {
-			return nil, err
+			return pl, err
 		}
 	}
-
-	go func() {
-		for {
-			time.Sleep(time.Second * 5)
-			if err := pl.Save(true); err != nil {
-				panic(err)
-			}
-		}
-	}()
 
 	return pl, nil
 }
 
-func getCache(cacheDir string) *cache.Cache {
+func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
 	if cacheDir != "" {
-		dls, _ := cache.New(cacheDir, path.Join(os.TempDir(), "ym"))
+		dls, _ := cache.New(e, cacheDir, path.Join(os.TempDir(), "ym"))
 		return dls
 	}
 
@@ -57,6 +50,8 @@ func getCache(cacheDir string) *cache.Cache {
 }
 
 func main() {
+	errChan := make(chan error, 0)
+
 	yt, err := search.NewYoutube()
 	if err != nil {
 		panic(err)
@@ -77,10 +72,29 @@ func main() {
 		cacheDir = path.Join(user.HomeDir, ".cache", "ym")
 	}
 
-	dls := getCache(cacheDir)
+	e, _ := audio.FindSupportedExtractor(
+		audio.NewFFMPEG(),
+	)
+
+	dls := getCache(path.Join(cacheDir, "downloads"), e)
 	pl, err := getPlaylist(cacheDir)
-	if err != nil {
+	if pl == nil {
 		panic(err)
+	}
+
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			if err := pl.Save(true); err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	if err != nil {
+		go func() {
+			errChan <- errors.New("Could no load playlist")
+		}()
 	}
 
 	ym := ym.New(
@@ -107,7 +121,6 @@ func main() {
 	currentChan := make(chan search.Result, 0)
 
 	statusChan := make(chan string, 0)
-	errChan := make(chan error, 0)
 	go func() {
 		if err := ym.Play(playChan, currentChan, statusChan, errChan); err != nil {
 			panic(err)
@@ -158,7 +171,10 @@ func main() {
 				continue
 			}
 
-			dls.Set(cache.NewEntry(entry.ID(), "mp4", u))
+			err = dls.Set(cache.NewEntry(entry.ID(), "mp4", u))
+			if err != nil {
+				errChan <- err
+			}
 		}
 	}()
 
@@ -191,6 +207,7 @@ func main() {
 			switch cmd.Arg() {
 			case "list", "queue", "playlist":
 				view = "playlist"
+				titleChan <- &status{msg: "Playlist"}
 				playlistChan <- struct{}{}
 				continue
 			}
@@ -240,9 +257,11 @@ func main() {
 			if cmd.Cmd() == ':' {
 				i, err := r.Info()
 				if err != nil {
-					panic(err)
+					errChan <- err
+					continue
 				}
 				infoChan <- i
+				titleChan <- &status{msg: "Info:" + i.Title()}
 				view = "info"
 				continue
 			}

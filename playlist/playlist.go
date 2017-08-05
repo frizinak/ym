@@ -124,7 +124,10 @@ func (p *Playlist) Load() error {
 		return err
 	}
 
-	index := int(binary.LittleEndian.Uint32(i))
+	var index int
+	if len(i) >= 4 {
+		index = int(binary.LittleEndian.Uint32(i))
+	}
 
 	raw := make([]*storable, 0)
 	dec := gob.NewDecoder(r)

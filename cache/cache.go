@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+type Transcoder interface {
+	Transcode(video io.Reader, audio io.Writer) error
+	Ext() string
+}
+
 type Entry struct {
 	id  string
 	ext string
@@ -42,11 +47,12 @@ func (c *Cached) Path() string {
 }
 
 type Cache struct {
+	t       Transcoder
 	dir     string
 	tempdir string
 }
 
-func New(dir, tempdir string) (*Cache, error) {
+func New(t Transcoder, dir, tempdir string) (*Cache, error) {
 	if err := os.MkdirAll(tempdir, 0755); err != nil {
 		return nil, err
 	}
@@ -55,7 +61,7 @@ func New(dir, tempdir string) (*Cache, error) {
 		return nil, err
 	}
 
-	return &Cache{dir, tempdir}, nil
+	return &Cache{t, dir, tempdir}, nil
 }
 
 func (c *Cache) Get(id string) *Cached {
@@ -90,11 +96,16 @@ func (c *Cache) Set(e *Entry) error {
 		hashFn(id, false)+"."+strconv.FormatInt(time.Now().UnixNano(), 36),
 	)
 
-	if err := download(u.String(), tmp); err != nil {
+	if err := download(c.t, u.String(), tmp); err != nil {
 		return err
 	}
 
-	dest := path.Join(c.dir, hashFn(id, true)+"."+e.Ext())
+	ext := e.Ext()
+	if c.t != nil {
+		ext = c.t.Ext()
+	}
+
+	dest := path.Join(c.dir, hashFn(id, true)+"."+ext)
 	dir := path.Dir(dest)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -143,7 +154,7 @@ func copy(dest, src string) error {
 	return err
 }
 
-func download(u, dest string) error {
+func download(t Transcoder, u, dest string) error {
 	f, err := os.Create(dest)
 	defer f.Close()
 	if err != nil {
@@ -157,6 +168,10 @@ func download(u, dest string) error {
 
 	if err != nil {
 		return err
+	}
+
+	if t != nil {
+		return t.Transcode(res.Body, f)
 	}
 
 	_, err = io.Copy(f, res.Body)
