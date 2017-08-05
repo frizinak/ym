@@ -129,10 +129,10 @@ func (ym *YM) Play(
 	queue <-chan *command.Command,
 	current chan<- search.Result,
 	status chan<- string,
+	errs chan<- error,
 ) error {
 	var commands chan player.Command
 	var sem sync.Mutex
-	errs := make(chan error, 0)
 
 	go func() {
 		for {
@@ -152,7 +152,7 @@ func (ym *YM) Play(
 				u, err := result.DownloadURL()
 				if err != nil {
 					errs <- err
-					break
+					continue
 				}
 				file = u.String()
 			}
@@ -178,7 +178,7 @@ func (ym *YM) Play(
 			ym.state = "play"
 			if err != nil {
 				errs <- err
-				break
+				continue
 			}
 
 			wait()
@@ -187,55 +187,46 @@ func (ym *YM) Play(
 		}
 	}()
 
-	for {
-		select {
-		case err := <-errs:
-			return err
-		case cmd, ok := <-queue:
-			if !ok {
-				return nil
+	for cmd := range queue {
+		if cmd.Cmd() == ':' {
+			var c player.Command = player.CMD_NIL
+			switch {
+			case strings.HasPrefix("next", cmd.Arg()):
+				c = player.CMD_STOP
+			case strings.HasPrefix("previous", cmd.Arg()):
+				c = player.CMD_STOP
+				ym.playlist.Prev()
+			case strings.HasPrefix("clear", cmd.Arg()):
+				c = player.CMD_STOP
+				ym.playlist.Truncate()
+			case strings.HasPrefix("pause", cmd.Arg()):
+				c = player.CMD_PAUSE
+				switch ym.state {
+				case "pause":
+					status <- "Playing"
+					ym.state = "play"
+				case "play":
+					status <- "Paused"
+					ym.state = "pause"
+				}
 			}
 
-			if cmd.Cmd() == ':' {
-				var c player.Command = player.CMD_NIL
-				switch {
-				case strings.HasPrefix("next", cmd.Arg()):
-					c = player.CMD_STOP
-				case strings.HasPrefix("previous", cmd.Arg()):
-					c = player.CMD_STOP
-					ym.playlist.Prev()
-				case strings.HasPrefix("clear", cmd.Arg()):
-					c = player.CMD_STOP
-					ym.playlist.Truncate()
-				case strings.HasPrefix("pause", cmd.Arg()):
-					c = player.CMD_PAUSE
-					switch ym.state {
-					case "pause":
-						status <- "Playing"
-						ym.state = "play"
-					case "play":
-						status <- "Paused"
-						ym.state = "pause"
+			if c != player.CMD_NIL {
+				sem.Lock()
+				if commands != nil {
+					commands <- c
+					if c == player.CMD_STOP {
+						ym.current = nil
+						current <- nil
+						commands = nil
 					}
 				}
-
-				if c != player.CMD_NIL {
-					sem.Lock()
-					if commands != nil {
-						commands <- c
-						if c == player.CMD_STOP {
-							ym.current = nil
-							current <- nil
-							commands = nil
-						}
-					}
-					sem.Unlock()
-				}
-				continue
+				sem.Unlock()
 			}
-
-			ym.playlist.Add(cmd)
+			continue
 		}
+
+		ym.playlist.Add(cmd)
 	}
 
 	return nil

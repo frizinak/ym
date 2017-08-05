@@ -107,15 +107,22 @@ func main() {
 	currentChan := make(chan search.Result, 0)
 
 	statusChan := make(chan string, 0)
+	errChan := make(chan error, 0)
 	go func() {
-		if err := ym.Play(playChan, currentChan, statusChan); err != nil {
+		if err := ym.Play(playChan, currentChan, statusChan, errChan); err != nil {
 			panic(err)
 		}
 	}()
 
 	terminal.Clear()
 
-	titleChan := make(chan string, 0)
+	titleChan := make(chan *status, 0)
+	go func() {
+		for err := range errChan {
+			titleChan <- &status{err.Error(), time.Second * 5}
+		}
+	}()
+
 	statusCurrentChan := make(chan search.Result, 0)
 	go printStatus(titleChan, statusCurrentChan, statusChan)
 
@@ -158,7 +165,7 @@ func main() {
 	for {
 		if view == "results" {
 			title, r := history.Current()
-			titleChan <- title
+			titleChan <- &status{msg: title}
 			resultsChan <- r
 		}
 

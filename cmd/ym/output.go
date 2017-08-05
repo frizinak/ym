@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	runewidth "github.com/mattn/go-runewidth"
 
@@ -12,9 +13,15 @@ import (
 	"github.com/frizinak/ym/terminal"
 )
 
-func printStatus(q <-chan string, r <-chan search.Result, s <-chan string) {
-	query := "-"
-	status := "-"
+type status struct {
+	msg     string
+	timeout time.Duration
+}
+
+func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
+	var lstatus string
+	lstatusChan := make(chan string, 0)
+	rstatus := "-"
 	var result search.Result
 
 	print := func() {
@@ -24,12 +31,12 @@ func printStatus(q <-chan string, r <-chan search.Result, s <-chan string) {
 			title = result.Title()
 		}
 
-		if query == "" {
-			query = "-"
+		if lstatus == "" {
+			lstatus = "-"
 		}
 
-		left := fmt.Sprintf(" %s ", strings.TrimSpace(query))
-		right := fmt.Sprintf(" %s: %s ", status, title)
+		left := fmt.Sprintf(" %s ", strings.TrimSpace(lstatus))
+		right := fmt.Sprintf(" %s: %s ", rstatus, title)
 		lw := runewidth.StringWidth(left)
 		rw := runewidth.StringWidth(right)
 		diff := lw + rw - w + 10
@@ -39,7 +46,7 @@ func printStatus(q <-chan string, r <-chan search.Result, s <-chan string) {
 				runewidth.StringWidth(title)-diff-1,
 				"…",
 			)
-			right = fmt.Sprintf(" %s: %s ", status, title)
+			right = fmt.Sprintf(" %s: %s ", rstatus, title)
 		}
 
 		fmt.Printf(
@@ -52,13 +59,28 @@ func printStatus(q <-chan string, r <-chan search.Result, s <-chan string) {
 		)
 	}
 
+	go func() {
+		var lstatus *status
+		for s := range q {
+			lstatusChan <- s.msg
+			if s.timeout != 0 {
+				time.Sleep(s.timeout)
+				if lstatus != nil {
+					lstatusChan <- lstatus.msg
+				}
+				continue
+			}
+			lstatus = s
+		}
+	}()
+
 	for {
 		select {
-		case query = <-q:
+		case lstatus = <-lstatusChan:
 			print()
 		case result = <-r:
 			print()
-		case status = <-s:
+		case rstatus = <-s:
 			print()
 		}
 	}
