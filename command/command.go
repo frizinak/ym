@@ -39,6 +39,7 @@ func (c *Command) parse() {
 	}
 }
 
+func (c *Command) Raw() string               { return c.raw }
 func (c *Command) IsCmd() bool               { return c.cmd != 0 }
 func (c *Command) IsChoice() bool            { return c.choice != 0 }
 func (c *Command) Cmd() byte                 { return c.cmd }

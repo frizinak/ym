@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/frizinak/ym/cache"
 	"github.com/frizinak/ym/command"
@@ -16,6 +17,44 @@ import (
 	"github.com/frizinak/ym/terminal"
 	"github.com/frizinak/ym/ym"
 )
+
+func getPlaylist(cacheDir string) (*playlist.Playlist, error) {
+	var f string
+	var e bool
+	if cacheDir != "" {
+		f = path.Join(cacheDir, "playlist.gob")
+		if _, err := os.Stat(f); err == nil || !os.IsNotExist(err) {
+			e = true
+		}
+	}
+
+	pl := playlist.New(f, 100)
+	if e {
+		if err := pl.Load(); err != nil {
+			return nil, err
+		}
+	}
+
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			if err := pl.Save(true); err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	return pl, nil
+}
+
+func getCache(cacheDir string) *cache.Cache {
+	if cacheDir != "" {
+		dls, _ := cache.New(cacheDir, path.Join(os.TempDir(), "ym"))
+		return dls
+	}
+
+	return nil
+}
 
 func main() {
 	yt, err := search.NewYoutube()
@@ -33,13 +72,17 @@ func main() {
 		panic(err)
 	}
 
-	var dls *cache.Cache
+	var cacheDir string
 	if user, err := user.Current(); err == nil {
-		cacheDir := path.Join(user.HomeDir, ".cache", "ym")
-		dls, _ = cache.New(cacheDir, path.Join(os.TempDir(), "ym"))
+		cacheDir = path.Join(user.HomeDir, ".cache", "ym")
 	}
 
-	pl := playlist.New(100)
+	dls := getCache(cacheDir)
+	pl, err := getPlaylist(cacheDir)
+	if err != nil {
+		panic(err)
+	}
+
 	ym := ym.New(
 		pl,
 		yt,

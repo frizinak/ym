@@ -1,25 +1,154 @@
 package playlist
 
 import (
+	"bufio"
+	"compress/gzip"
+	"encoding/binary"
+	"encoding/gob"
+	"os"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/frizinak/ym/command"
 	"github.com/frizinak/ym/search"
 )
 
-// Playlist is thread safe
-type Playlist struct {
-	list []*command.Command
-	sem  sync.RWMutex
-	d    chan struct{}
-	i    int
+type storable struct {
+	Raw        string
+	ResultType string
+	Result     []byte
 }
 
-func New(size int) *Playlist {
+func init() {
+	gob.Register([]*storable{})
+}
+
+// Playlist is thread safe
+type Playlist struct {
+	file    string
+	list    []*command.Command
+	sem     sync.RWMutex
+	d       chan struct{}
+	i       int
+	changed bool
+}
+
+func New(file string, size int) *Playlist {
 	return &Playlist{
+		file: file,
 		list: make([]*command.Command, 0, size),
 		d:    make(chan struct{}, 0),
 	}
+}
+
+func (p *Playlist) Save(onlyIfChanged bool) (err error) {
+	if onlyIfChanged {
+		p.sem.RLock()
+		c := p.changed
+		p.sem.RUnlock()
+		if !c {
+			return nil
+		}
+	}
+
+	var f *os.File
+	tmp := p.file + "." + strconv.FormatInt(time.Now().UnixNano(), 36)
+	f, err = os.Create(tmp)
+	if err != nil {
+		return err
+	}
+
+	w := gzip.NewWriter(f)
+	p.sem.RLock()
+	defer func() {
+		w.Close()
+		if err != nil {
+			os.Remove(tmp)
+		}
+		err = f.Close()
+		p.sem.RUnlock()
+	}()
+
+	enc := gob.NewEncoder(w)
+	i := make([]byte, 5)
+
+	binary.LittleEndian.PutUint32(i, uint32(p.i))
+	i[4] = 10
+
+	if _, err = w.Write(i); err != nil {
+		return err
+	}
+
+	list := make([]*storable, len(p.list))
+	for i, c := range p.list {
+		r := c.Result()
+		var d []byte
+		var to string
+		if r != nil {
+			to = search.ResultTypeName(r)
+			d = r.Marshal()
+		}
+
+		list[i] = &storable{c.Raw(), to, d}
+	}
+
+	if err = enc.Encode(list); err != nil {
+		return err
+	}
+
+	err = os.Rename(tmp, p.file)
+	p.changed = err != nil
+	return err
+}
+
+func (p *Playlist) Load() error {
+	p.sem.Lock()
+	defer p.sem.Unlock()
+	f, err := os.Open(p.file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gr, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gr.Close()
+
+	r := bufio.NewReader(gr)
+
+	i, _, err := r.ReadLine()
+	if err != nil {
+		return err
+	}
+
+	index := int(binary.LittleEndian.Uint32(i))
+
+	raw := make([]*storable, 0)
+	dec := gob.NewDecoder(r)
+	if err := dec.Decode(&raw); err != nil {
+		return err
+	}
+
+	list := make([]*command.Command, len(raw))
+	for i, s := range raw {
+		c := command.New(s.Raw)
+		if s.ResultType != "" {
+			r := search.ResultType(s.ResultType)
+			if err := r.Unmarshal(s.Result); err != nil {
+				return err
+			}
+			c.SetResult(r)
+		}
+
+		list[i] = c
+	}
+
+	p.list = list
+	p.i = index
+	return nil
 }
 
 func (p *Playlist) Add(cmd *command.Command) {
@@ -30,6 +159,7 @@ func (p *Playlist) Add(cmd *command.Command) {
 	}
 
 	p.list = append(p.list, cmd)
+	p.changed = true
 	p.sem.Unlock()
 }
 
@@ -94,6 +224,7 @@ func (p *Playlist) Truncate() {
 	p.sem.Lock()
 	p.list = make([]*command.Command, 0, cap(p.list))
 	p.i = 0
+	p.changed = true
 	p.sem.Unlock()
 }
 
@@ -107,6 +238,7 @@ func (p *Playlist) Read() *command.Command {
 
 	r := p.list[p.i]
 	p.i++
+	p.changed = true
 	p.sem.Unlock()
 	return r
 }
@@ -129,6 +261,7 @@ func (p *Playlist) Prev() {
 		p.i = 0
 	}
 
+	p.changed = true
 	p.sem.Unlock()
 }
 
