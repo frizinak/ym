@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,7 +94,7 @@ func main() {
 
 	if err != nil {
 		go func() {
-			errChan <- errors.New("Could no load playlist")
+			errChan <- errors.New("Could not load playlist")
 		}()
 	}
 
@@ -148,8 +149,7 @@ func main() {
 	playlistChan := make(chan struct{}, 0)
 	go printPlaylist(pl, playlistChan)
 
-	view := "results"
-
+	view := "playlist"
 	go func() {
 		for r := range currentChan {
 			statusCurrentChan <- r
@@ -178,7 +178,7 @@ func main() {
 		}
 	}()
 
-	var info search.Info
+	var info search.Result
 	for {
 		switch view {
 		case "playlist":
@@ -193,7 +193,14 @@ func main() {
 				continue
 			}
 
-			infoChan <- info
+			i, err := info.Info()
+			if err != nil {
+				errChan <- err
+				view = "results"
+				continue
+			}
+
+			infoChan <- i
 			titleChan <- &status{msg: "Info:" + info.Title()}
 		}
 
@@ -216,7 +223,7 @@ func main() {
 		}
 
 		if cmd.Cmd() == ':' {
-			switch cmd.Arg() {
+			switch cmd.Arg(0) {
 			case "list", "queue", "playlist":
 				view = "playlist"
 				titleChan <- &status{msg: "Playlist"}
@@ -224,7 +231,7 @@ func main() {
 			}
 		}
 
-		switch cmd.Arg() {
+		switch cmd.Arg(0) {
 		case "<", "back":
 			if view == "playlist" {
 				view = "results"
@@ -239,23 +246,22 @@ func main() {
 
 		if !cmd.Equal(ocmd) && !cmd.IsChoice() && !cmd.IsCmd() {
 			view = "results"
-			titleChan <- &status{msg: "Searching: " + cmd.Arg()}
-			r, err := ym.ExecSearch(cmd.Arg())
+			titleChan <- &status{msg: "Searching: " + cmd.ArgStr()}
+			r, err := ym.ExecSearch(cmd.ArgStr())
 			if err != nil {
 				errChan <- err
 				continue
 			}
-			history.Write(cmd.Arg(), r)
+			history.Write(cmd.ArgStr(), r)
 			ocmd = cmd
 			continue
 		}
 
-		choice := cmd.Choice()
 		_, cur := history.Current()
 		switch view {
 		case "results":
-			if choice > 0 && choice <= len(cur) {
-				r := cur[choice-1]
+			if cmd.Choice() > 0 && cmd.Choice() <= len(cur) {
+				r := cur[cmd.Choice()-1]
 				if r.IsPlayList() {
 					if cur, err = r.PlaylistResults(time.Second * 5); err != nil {
 						errChan <- err
@@ -266,12 +272,7 @@ func main() {
 				}
 
 				if cmd.Cmd() == ':' {
-					i, err := r.Info()
-					if err != nil {
-						errChan <- err
-						continue
-					}
-					info = i
+					info = r
 					view = "info"
 					continue
 				}
@@ -282,6 +283,31 @@ func main() {
 				continue
 			}
 		case "playlist":
+			if cmd.Cmd() == ':' {
+				switch {
+				case cmd.Arg(0) != "" && strings.HasPrefix("delete", cmd.Arg(0)):
+					which, err := strconv.Atoi(cmd.Arg(1))
+					if err != nil {
+						break
+					}
+					which--
+
+					ix := pl.Index()
+					pl.Del(which)
+					if ix != which {
+						continue
+					}
+					cmd = command.New(":next")
+				case cmd.Choice() > 0 && cmd.Choice() <= pl.Length():
+					r := pl.At(cmd.Choice() - 1)
+					if r == nil {
+						continue
+					}
+					info = r.Result()
+					view = "info"
+					continue
+				}
+			}
 		default:
 			view = "results"
 			continue

@@ -53,7 +53,7 @@ func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
 			fmt.Sprintf(
 				"\033[0;0f\033[K\033[1;41m%s%%%ds\033[0m\n\033[u",
 				left,
-				w-2-lw,
+				w-lw,
 			),
 			right,
 		)

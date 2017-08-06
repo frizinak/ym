@@ -143,9 +143,11 @@ func (ym *YM) Play(
 			}
 
 			var file string
-			cached := ym.cache.Get(result.ID())
-			if cached != nil {
-				file = cached.Path()
+			if c.Cmd() != '!' {
+				cached := ym.cache.Get(result.ID())
+				if cached != nil {
+					file = cached.Path()
+				}
 			}
 
 			if file == "" {
@@ -197,7 +199,7 @@ func (ym *YM) Play(
 		}
 
 		if cmd.Cmd() == ':' {
-			arg := cmd.Arg()
+			arg := cmd.Arg(0)
 			if arg == "" {
 				continue
 			}

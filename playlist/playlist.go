@@ -174,6 +174,22 @@ func (p *Playlist) Add(cmd *command.Command) {
 	p.sem.Unlock()
 }
 
+func (p *Playlist) Del(ix int) {
+	p.sem.Lock()
+	if ix >= 0 && ix < len(p.list) {
+		if p.i > ix && p.i > 0 {
+			p.i--
+		}
+		p.list = append(p.list[:ix], p.list[ix+1:]...)
+		p.changed = true
+		select {
+		case p.d <- struct{}{}:
+		default:
+		}
+	}
+	p.sem.Unlock()
+}
+
 func (p *Playlist) List() []*command.Command {
 	p.sem.RLock()
 	r := make([]*command.Command, len(p.list))
@@ -255,13 +271,13 @@ func (p *Playlist) Read() *command.Command {
 	return r
 }
 
-func (p *Playlist) Current() *command.Command {
+func (p *Playlist) At(ix int) *command.Command {
 	p.sem.RLock()
-	if p.i >= len(p.list) {
+	if ix < 0 || ix >= len(p.list) {
 		return nil
 	}
 
-	r := p.list[p.i]
+	r := p.list[ix]
 	p.sem.RUnlock()
 	return r
 }
@@ -306,5 +322,10 @@ func (p *Playlist) SetIndex(i int) {
 	}
 	p.i = i
 	p.changed = true
+	select {
+	case p.d <- struct{}{}:
+	default:
+	}
+
 	p.sem.Unlock()
 }
