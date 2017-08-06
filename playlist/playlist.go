@@ -150,11 +150,19 @@ func (p *Playlist) Load() error {
 	}
 
 	p.list = list
-	p.i = index
+	p.i = index - 1
+	if p.i < 0 {
+		p.i = 0
+	}
+
 	return nil
 }
 
 func (p *Playlist) Add(cmd *command.Command) {
+	if cmd.Result() == nil {
+		return
+	}
+
 	p.sem.Lock()
 	select {
 	case p.d <- struct{}{}:
@@ -194,15 +202,16 @@ func (p *Playlist) ResultList() []search.Result {
 	return r
 }
 
-func (p *Playlist) Surrounding(amount int) (int, []search.Result) {
+func (p *Playlist) Surrounding(amount int) (firstIndex int, activeIndex int, r []search.Result) {
 	p.sem.RLock()
-	r := make([]search.Result, 0, amount)
-	ix := p.Index()
-	offset := ix - amount/2
+	r = make([]search.Result, 0, amount)
+	activeIndex = p.Index()
+	offset := activeIndex - amount/2
 	if offset < 0 {
 		offset = 0
 	}
-	ix -= offset
+	firstIndex = offset
+	activeIndex -= offset
 
 	for {
 		if offset >= len(p.list) {
@@ -220,7 +229,7 @@ func (p *Playlist) Surrounding(amount int) (int, []search.Result) {
 	}
 
 	p.sem.RUnlock()
-	return ix, r
+	return
 }
 
 func (p *Playlist) Truncate() {
@@ -243,6 +252,17 @@ func (p *Playlist) Read() *command.Command {
 	p.i++
 	p.changed = true
 	p.sem.Unlock()
+	return r
+}
+
+func (p *Playlist) Current() *command.Command {
+	p.sem.RLock()
+	if p.i >= len(p.list) {
+		return nil
+	}
+
+	r := p.list[p.i]
+	p.sem.RUnlock()
 	return r
 }
 
@@ -273,4 +293,18 @@ func (p *Playlist) Index() int {
 	i := p.i - 1
 	p.sem.RUnlock()
 	return i
+}
+
+func (p *Playlist) SetIndex(i int) {
+	p.sem.Lock()
+	if i > len(p.list) {
+		i = len(p.list)
+	}
+
+	if i < 0 {
+		i = 0
+	}
+	p.i = i
+	p.changed = true
+	p.sem.Unlock()
 }

@@ -124,7 +124,7 @@ func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
 	for range c {
 		w, h := terminal.Dimensions()
 		h -= 3
-		ix, results := pl.Surrounding(h)
+		offset, ix, results := pl.Surrounding(h)
 
 		fmt.Printf("\033[2;0f\033[K")
 		for i := range results {
@@ -138,8 +138,9 @@ func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
 			}
 
 			fmt.Printf(
-				"\033[%d;0f\033[K\033[0m %s\n",
+				"\033[%d;0f\033[K\033[1;41m %02d \033[0m %s\n",
 				i+2,
+				offset+i+1,
 				title,
 			)
 		}

@@ -158,9 +158,6 @@ func (ym *YM) Play(
 			}
 
 			params := []player.Param{player.PARAM_SILENT}
-			if c.Cmd() == '@' {
-				params = append(params, player.PARAM_ATTACH)
-			}
 
 			if c.Cmd() != '!' {
 				params = append(params, player.PARAM_NO_VIDEO)
@@ -172,34 +169,49 @@ func (ym *YM) Play(
 			sem.Lock()
 			commands, wait, err = ym.player.Spawn(file, params)
 			sem.Unlock()
+			ym.state = "play"
 			status <- "Playing"
 			current <- result
 			ym.current = result
-			ym.state = "play"
 			if err != nil {
 				errs <- err
 				continue
 			}
 
-			wait()
+			if wait != nil {
+				wait()
+			}
+
 			ym.state = "stop"
 			status <- "Stopped"
+			current <- nil
+			ym.current = nil
 		}
 	}()
 
 	for cmd := range queue {
+		choice := cmd.Choice()
+		if choice > 0 {
+			ym.playlist.SetIndex(choice - 1)
+			cmd = command.New(":next")
+		}
+
 		if cmd.Cmd() == ':' {
+			arg := cmd.Arg()
+			if arg == "" {
+				continue
+			}
 			var c player.Command = player.CMD_NIL
 			switch {
-			case strings.HasPrefix("next", cmd.Arg()):
+			case strings.HasPrefix("next", arg):
 				c = player.CMD_STOP
-			case strings.HasPrefix("previous", cmd.Arg()):
+			case strings.HasPrefix("previous", arg):
 				c = player.CMD_STOP
 				ym.playlist.Prev()
-			case strings.HasPrefix("clear", cmd.Arg()):
+			case strings.HasPrefix("clear", arg):
 				c = player.CMD_STOP
 				ym.playlist.Truncate()
-			case strings.HasPrefix("pause", cmd.Arg()):
+			case strings.HasPrefix("pause", arg):
 				c = player.CMD_PAUSE
 				switch ym.state {
 				case "pause":
@@ -216,17 +228,12 @@ func (ym *YM) Play(
 				if commands != nil {
 					commands <- c
 					if c == player.CMD_STOP {
-						ym.current = nil
-						current <- nil
 						commands = nil
 					}
 				}
 				sem.Unlock()
 			}
-			continue
 		}
-
-		ym.playlist.Add(cmd)
 	}
 
 	return nil

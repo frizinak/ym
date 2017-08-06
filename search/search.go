@@ -46,7 +46,7 @@ type Result interface {
 	ID() string
 
 	IsPlayList() bool
-	PlaylistResults() ([]Result, error)
+	PlaylistResults(timeout time.Duration) ([]Result, error)
 
 	DownloadURL() (*url.URL, error)
 	PageURL() *url.URL

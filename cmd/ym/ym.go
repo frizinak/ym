@@ -52,7 +52,7 @@ func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
 func main() {
 	errChan := make(chan error, 0)
 
-	yt, err := search.NewYoutube()
+	yt, err := search.NewYoutube(time.Second * 5)
 	if err != nil {
 		panic(err)
 	}
@@ -178,11 +178,23 @@ func main() {
 		}
 	}()
 
+	var info search.Info
 	for {
-		if view == "results" {
+		switch view {
+		case "playlist":
+			playlistChan <- struct{}{}
+		case "results":
 			title, r := history.Current()
 			titleChan <- &status{msg: title}
 			resultsChan <- r
+		case "info":
+			if info == nil {
+				view = "results"
+				continue
+			}
+
+			infoChan <- info
+			titleChan <- &status{msg: "Info:" + info.Title()}
 		}
 
 		if len(cmds) == 0 {
@@ -208,7 +220,6 @@ func main() {
 			case "list", "queue", "playlist":
 				view = "playlist"
 				titleChan <- &status{msg: "Playlist"}
-				playlistChan <- struct{}{}
 				continue
 			}
 		}
@@ -228,9 +239,11 @@ func main() {
 
 		if !cmd.Equal(ocmd) && !cmd.IsChoice() && !cmd.IsCmd() {
 			view = "results"
+			titleChan <- &status{msg: "Searching: " + cmd.Arg()}
 			r, err := ym.ExecSearch(cmd.Arg())
 			if err != nil {
-				panic(err)
+				errChan <- err
+				continue
 			}
 			history.Write(cmd.Arg(), r)
 			ocmd = cmd
@@ -239,35 +252,39 @@ func main() {
 
 		choice := cmd.Choice()
 		_, cur := history.Current()
-		if choice > 0 && choice <= len(cur) {
-			if view != "results" {
-				view = "results"
-				continue
-			}
-
-			r := cur[choice-1]
-			if r.IsPlayList() {
-				if cur, err = r.PlaylistResults(); err != nil {
-					panic(err)
-				}
-				history.Write("Playlist: "+r.Title(), cur)
-				continue
-			}
-
-			if cmd.Cmd() == ':' {
-				i, err := r.Info()
-				if err != nil {
-					errChan <- err
+		switch view {
+		case "results":
+			if choice > 0 && choice <= len(cur) {
+				r := cur[choice-1]
+				if r.IsPlayList() {
+					if cur, err = r.PlaylistResults(time.Second * 5); err != nil {
+						errChan <- err
+						continue
+					}
+					history.Write("Playlist: "+r.Title(), cur)
 					continue
 				}
-				infoChan <- i
-				titleChan <- &status{msg: "Info:" + i.Title()}
-				view = "info"
+
+				if cmd.Cmd() == ':' {
+					i, err := r.Info()
+					if err != nil {
+						errChan <- err
+						continue
+					}
+					info = i
+					view = "info"
+					continue
+				}
+
+				cacheChan <- r
+				cmd.SetResult(r)
+				pl.Add(cmd)
 				continue
 			}
-
-			cacheChan <- r
-			cmd.SetResult(r)
+		case "playlist":
+		default:
+			view = "results"
+			continue
 		}
 
 		playChan <- cmd

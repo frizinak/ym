@@ -2,7 +2,6 @@ package player
 
 import (
 	"errors"
-	"os"
 	"os/exec"
 )
 
@@ -15,7 +14,6 @@ const (
 
 	PARAM_NO_VIDEO Param = "no-video"
 	PARAM_SILENT   Param = "silent"
-	PARAM_ATTACH   Param = "attach"
 )
 
 type Command int
@@ -45,8 +43,7 @@ type GenericPlayer struct {
 }
 
 func (m *GenericPlayer) Supported() bool {
-	_, err := exec.LookPath(m.cmd)
-	return err == nil
+	return binaryInPath(m.cmd)
 }
 
 func (m *GenericPlayer) Spawn(file string, params []Param) (
@@ -58,28 +55,15 @@ func (m *GenericPlayer) Spawn(file string, params []Param) (
 	if args == nil {
 		args = make([]string, 0, len(params)+1)
 	}
-	attach := false
 	for _, p := range params {
 		if a, ok := m.paramMap[p]; ok {
 			args = append(args, a...)
 			continue
 		}
-
-		switch p {
-		case PARAM_ATTACH:
-			attach = true
-		}
 	}
 
 	args = append(args, file)
 	cmd := exec.Command(m.cmd, args...)
-	if attach {
-		cmd.Stdin = os.Stdin
-		cmd.Stderr = os.Stderr
-		cmd.Stdout = os.Stdout
-		return nil, nil, cmd.Run()
-	}
-
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, nil, err
@@ -111,4 +95,9 @@ func (m *GenericPlayer) Spawn(file string, params []Param) (
 	}()
 
 	return commands, wait, nil
+}
+
+func binaryInPath(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
 }

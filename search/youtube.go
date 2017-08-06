@@ -60,7 +60,7 @@ func (y *YoutubeResult) DownloadURL() (*url.URL, error) {
 	return u, nil
 }
 
-func (y *YoutubeResult) PlaylistResults() ([]Result, error) {
+func (y *YoutubeResult) PlaylistResults(timeout time.Duration) ([]Result, error) {
 	results, err := match(
 		&url.URL{
 			Scheme:   y.url.Scheme,
@@ -70,6 +70,7 @@ func (y *YoutubeResult) PlaylistResults() ([]Result, error) {
 		},
 		y.re,
 		true,
+		timeout,
 	)
 
 	// Remove 'Play all' button
@@ -146,16 +147,17 @@ func (y *YoutubeResult) Unmarshal(b []byte) error {
 }
 
 type Youtube struct {
-	re *regexp.Regexp
+	re      *regexp.Regexp
+	timeout time.Duration
 }
 
-func NewYoutube() (*Youtube, error) {
+func NewYoutube(timeout time.Duration) (*Youtube, error) {
 	re, err := regexp.Compile(`<a.*href="(/watch[^"]+)"[^>]*?(?: title="([^"]+)"|[^>]*?>([^<>]+)</a)`)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Youtube{re: re}, nil
+	return &Youtube{re: re, timeout: timeout}, nil
 }
 
 func (y *Youtube) Search(q string) ([]Result, error) {
@@ -169,11 +171,11 @@ func (y *Youtube) Search(q string) ([]Result, error) {
 		return nil, err
 	}
 
-	return match(u, y.re, false)
+	return match(u, y.re, false, y.timeout)
 }
 
-func match(u *url.URL, re *regexp.Regexp, trimPlaylist bool) ([]Result, error) {
-	res, err := http.Get(u.String())
+func match(u *url.URL, re *regexp.Regexp, trimPlaylist bool, to time.Duration) ([]Result, error) {
+	res, err := (&http.Client{Timeout: to}).Get(u.String())
 	if err != nil {
 		return nil, err
 	}
