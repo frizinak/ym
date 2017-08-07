@@ -130,7 +130,7 @@ func main() {
 
 	terminal.Clear()
 
-	titleChan := make(chan *status, 0)
+	titleChan := make(chan *status, 100)
 	go func() {
 		for err := range errChan {
 			titleChan <- &status{err.Error(), time.Second * 5}

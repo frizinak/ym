@@ -118,20 +118,17 @@ func (p *Playlist) Load() error {
 	defer gr.Close()
 
 	r := bufio.NewReader(gr)
-
-	i, _, err := r.ReadLine()
-	if err != nil {
+	i := make([]byte, 5)
+	if _, err = r.Read(i); err != nil {
 		return err
 	}
 
-	var index int
-	if len(i) >= 4 {
-		index = int(binary.LittleEndian.Uint32(i))
-	}
+	index := int(binary.LittleEndian.Uint32(i[:4]))
 
 	raw := make([]*storable, 0)
 	dec := gob.NewDecoder(r)
 	if err := dec.Decode(&raw); err != nil {
+		os.Exit(4)
 		return err
 	}
 
@@ -282,22 +279,40 @@ func (p *Playlist) At(ix int) *command.Command {
 	return r
 }
 
-func (p *Playlist) Prev() {
+func (p *Playlist) Next(i int) {
+	p.sem.Lock()
+
+	if i >= 1 {
+		p.i += i - 1
+		if p.i > len(p.list)+1 {
+			p.i = len(p.list) + 1
+		}
+	}
+
+	p.changed = true
+	p.sem.Unlock()
+}
+
+func (p *Playlist) Prev(i int) {
 	p.sem.Lock()
 
 	select {
 	case p.d <- struct{}{}:
 		p.i = len(p.list) - 1
+		i--
 	default:
+	}
+
+	if i > 0 {
 		if p.i <= len(p.list) {
 			p.i--
 		}
 
-		p.i -= 1
-	}
+		p.i -= i
 
-	if p.i < 0 {
-		p.i = 0
+		if p.i < 0 {
+			p.i = 0
+		}
 	}
 
 	p.changed = true
@@ -327,5 +342,40 @@ func (p *Playlist) SetIndex(i int) {
 	default:
 	}
 
+	p.sem.Unlock()
+}
+
+func (p *Playlist) Move(from, to int) {
+	if from == to {
+		return
+	}
+
+	d := -1
+	min, max := to, from
+	if from < to {
+		min, max = from, to
+		d = 1
+	}
+
+	p.sem.Lock()
+	if min >= 0 && max < len(p.list) {
+		s := p.list[from]
+		for i := from; i >= min && i <= max; i += d {
+			if i+d < 0 || i+d >= len(p.list) {
+				continue
+			}
+			p.list[i] = p.list[i+d]
+		}
+		p.list[to] = s
+
+		switch {
+		case from < p.i-1 && to >= p.i-1:
+			p.i--
+		case from > p.i-1 && to <= p.i-1:
+			p.i++
+		}
+
+		p.changed = true
+	}
 	p.sem.Unlock()
 }

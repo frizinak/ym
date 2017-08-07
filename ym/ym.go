@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -206,10 +207,29 @@ func (ym *YM) Play(
 			var c player.Command = player.CMD_NIL
 			switch {
 			case strings.HasPrefix("next", arg):
+				amount, err := strconv.Atoi(cmd.Arg(1))
+				if amount < 1 || err != nil {
+					amount = 1
+				}
+				ym.playlist.Next(amount)
 				c = player.CMD_STOP
 			case strings.HasPrefix("previous", arg):
+				amount, err := strconv.Atoi(cmd.Arg(1))
+				if amount < 1 || err != nil {
+					amount = 1
+				}
+				ym.playlist.Prev(amount)
 				c = player.CMD_STOP
-				ym.playlist.Prev()
+			case strings.HasPrefix("move", arg):
+				from, err := strconv.Atoi(cmd.Arg(1))
+				if err != nil {
+					continue
+				}
+				to, err := strconv.Atoi(cmd.Arg(2))
+				if err != nil {
+					continue
+				}
+				ym.playlist.Move(from-1, to-1)
 			case strings.HasPrefix("clear", arg):
 				c = player.CMD_STOP
 				ym.playlist.Truncate()
