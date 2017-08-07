@@ -4,9 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/frizinak/ym/cache"
 	"github.com/frizinak/ym/command"
@@ -131,60 +129,19 @@ func (ym *YM) Play(
 	current chan<- search.Result,
 	status chan<- string,
 	errs chan<- error,
+	quit <-chan struct{},
 ) error {
 	var commands chan player.Command
-	var sem sync.Mutex
+	//var sem sync.Mutex
 
+	iq := make(chan *command.Command, 0)
+	wait := make(chan func(), 0)
 	go func() {
 		for {
-			c := ym.playlist.Read()
-			result := c.Result()
-			if result == nil {
-				continue
+			iq <- ym.playlist.Read()
+			if w := <-wait; w != nil {
+				w()
 			}
-
-			var file string
-			if c.Cmd() != '!' {
-				cached := ym.cache.Get(result.ID())
-				if cached != nil {
-					file = cached.Path()
-				}
-			}
-
-			if file == "" {
-				u, err := result.DownloadURL()
-				if err != nil {
-					errs <- err
-					continue
-				}
-				file = u.String()
-			}
-
-			params := []player.Param{player.PARAM_SILENT}
-
-			if c.Cmd() != '!' {
-				params = append(params, player.PARAM_NO_VIDEO)
-			}
-
-			var wait func()
-			var err error
-
-			sem.Lock()
-			commands, wait, err = ym.player.Spawn(file, params)
-			sem.Unlock()
-			ym.state = "play"
-			status <- "Playing"
-			current <- result
-			ym.current = result
-			if err != nil {
-				errs <- err
-				continue
-			}
-
-			if wait != nil {
-				wait()
-			}
-
 			ym.state = "stop"
 			status <- "Stopped"
 			current <- nil
@@ -192,49 +149,89 @@ func (ym *YM) Play(
 		}
 	}()
 
-	for cmd := range queue {
-		choice := cmd.Choice()
-		if choice > 0 {
-			ym.playlist.SetIndex(choice - 1)
-			cmd = command.New(":next")
-		}
-
-		if cmd.Cmd() == ':' {
-			arg := cmd.Arg(0)
-			if arg == "" {
+	for {
+		select {
+		case <-quit:
+			if commands != nil {
+				commands <- player.CMD_STOP
+			}
+			return nil
+		case c := <-iq:
+			result := c.Result()
+			if result == nil {
 				continue
 			}
+
+			var file string
+			// TODO
+			// if c.Cmd() != '!' {
+			cached := ym.cache.Get(result.ID())
+			if cached != nil {
+				file = cached.Path()
+			}
+			// }
+
+			if file == "" {
+				u, err := result.DownloadURL()
+				if err != nil {
+					errs <- err
+					wait <- nil
+					continue
+				}
+				file = u.String()
+			}
+
+			params := []player.Param{player.PARAM_SILENT}
+
+			// TODO
+			// if c.Cmd() != '!' {
+			params = append(params, player.PARAM_NO_VIDEO)
+			// }
+
+			var err error
+			var w func()
+
+			commands, w, err = ym.player.Spawn(file, params)
+			ym.state = "play"
+			status <- "Playing"
+			current <- result
+			wait <- w
+			ym.current = result
+			if err != nil {
+				errs <- err
+				continue
+			}
+
+		case cmd := <-queue:
 			var c player.Command = player.CMD_NIL
-			switch {
-			case strings.HasPrefix("next", arg):
-				amount, err := strconv.Atoi(cmd.Arg(1))
-				if amount < 1 || err != nil {
-					amount = 1
-				}
-				ym.playlist.Next(amount)
+			if choice := cmd.Choice(); choice > 0 {
+				ym.playlist.SetIndex(choice - 1)
+				cmd = command.New([]rune{'>'})
+			}
+
+			if cmd.Next() {
+				ym.playlist.Next(1)
 				c = player.CMD_STOP
-			case strings.HasPrefix("previous", arg):
-				amount, err := strconv.Atoi(cmd.Arg(1))
-				if amount < 1 || err != nil {
-					amount = 1
-				}
-				ym.playlist.Prev(amount)
+
+			} else if cmd.Prev() {
+				ym.playlist.Prev(1)
 				c = player.CMD_STOP
-			case strings.HasPrefix("move", arg):
-				from, err := strconv.Atoi(cmd.Arg(1))
-				if err != nil {
-					continue
-				}
-				to, err := strconv.Atoi(cmd.Arg(2))
-				if err != nil {
-					continue
-				}
+
+			} else if from, to := cmd.Move(); from != 0 && to != 0 {
 				ym.playlist.Move(from-1, to-1)
-			case strings.HasPrefix("clear", arg):
-				c = player.CMD_STOP
+
+			} else if i := cmd.Delete() - 1; i != -1 {
+				ix := ym.playlist.Index()
+				ym.playlist.Del(i)
+				if ix == i {
+					c = player.CMD_STOP
+				}
+
+			} else if cmd.Clear() {
 				ym.playlist.Truncate()
-			case strings.HasPrefix("pause", arg):
-				c = player.CMD_PAUSE
+				c = player.CMD_STOP
+
+			} else if cmd.Pause() {
 				switch ym.state {
 				case "pause":
 					status <- "Playing"
@@ -243,17 +240,26 @@ func (ym *YM) Play(
 					status <- "Paused"
 					ym.state = "pause"
 				}
+
+				c = player.CMD_PAUSE
+
+			} else if y := cmd.Scroll(); y != 0 {
+				ym.playlist.Scroll(y)
+
+			} else if ud := cmd.Volume(); ud != 0 {
+				c = player.CMD_VOL_UP
+				if ud < 0 {
+					c = player.CMD_VOL_DOWN
+				}
 			}
 
 			if c != player.CMD_NIL {
-				sem.Lock()
 				if commands != nil {
 					commands <- c
 					if c == player.CMD_STOP {
 						commands = nil
 					}
 				}
-				sem.Unlock()
 			}
 		}
 	}

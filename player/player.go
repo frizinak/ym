@@ -11,6 +11,8 @@ const (
 	CMD_STOP
 	CMD_NEXT
 	CMD_PREV
+	CMD_VOL_UP
+	CMD_VOL_DOWN
 
 	PARAM_NO_VIDEO Param = "no-video"
 	PARAM_SILENT   Param = "silent"
@@ -72,7 +74,7 @@ func (m *GenericPlayer) Spawn(file string, params []Param) (
 		return nil, nil, err
 	}
 
-	commands := make(chan Command, 1)
+	commands := make(chan Command, 0)
 	wait := func() {
 		cmd.Wait()
 	}

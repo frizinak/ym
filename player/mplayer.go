@@ -8,9 +8,11 @@ func NewMPlayer() *GenericPlayer {
 			PARAM_SILENT:   {"-really-quiet"},
 		},
 		commandMap: map[Command][]byte{
-			CMD_PAUSE: []byte(" "),
-			CMD_NEXT:  []byte("\033[C"),
-			CMD_PREV:  []byte("\033[D"),
+			CMD_PAUSE:    []byte(" "),
+			CMD_NEXT:     []byte("\033[C"),
+			CMD_PREV:     []byte("\033[D"),
+			CMD_VOL_UP:   []byte("0"),
+			CMD_VOL_DOWN: []byte("9"),
 		},
 	}
 }

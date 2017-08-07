@@ -15,7 +15,7 @@ import (
 )
 
 type storable struct {
-	Raw        string
+	Raw        []rune
 	ResultType string
 	Result     []byte
 }
@@ -26,20 +26,31 @@ func init() {
 
 // Playlist is thread safe
 type Playlist struct {
-	file    string
-	list    []*command.Command
-	sem     sync.RWMutex
-	d       chan struct{}
-	i       int
-	changed bool
+	file     string
+	list     []*command.Command
+	sem      sync.RWMutex
+	d        chan struct{}
+	i        int
+	changed  bool
+	update   chan<- struct{}
+	scroll   int
+	scrolled bool
 }
 
-func New(file string, size int) *Playlist {
+func New(file string, size int, updates chan<- struct{}) *Playlist {
 	return &Playlist{
-		file: file,
-		list: make([]*command.Command, 0, size),
-		d:    make(chan struct{}, 0),
+		file:   file,
+		list:   make([]*command.Command, 0, size),
+		d:      make(chan struct{}, 0),
+		update: updates,
 	}
+}
+
+func (p *Playlist) updated(superficial bool) {
+	if !superficial {
+		p.changed = true
+	}
+	p.update <- struct{}{}
 }
 
 func (p *Playlist) Save(onlyIfChanged bool) (err error) {
@@ -90,7 +101,7 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 			d = r.Marshal()
 		}
 
-		list[i] = &storable{c.Raw(), to, d}
+		list[i] = &storable{c.Buffer(), to, d}
 	}
 
 	if err = enc.Encode(list); err != nil {
@@ -166,7 +177,7 @@ func (p *Playlist) Add(cmd *command.Command) {
 	}
 
 	p.list = append(p.list, cmd)
-	p.changed = true
+	p.updated(false)
 	p.sem.Unlock()
 }
 
@@ -177,7 +188,7 @@ func (p *Playlist) Del(ix int) {
 			p.i--
 		}
 		p.list = append(p.list[:ix], p.list[ix+1:]...)
-		p.changed = true
+		p.updated(false)
 		select {
 		case p.d <- struct{}{}:
 		default:
@@ -214,17 +225,56 @@ func (p *Playlist) ResultList() []search.Result {
 	return r
 }
 
+func (p *Playlist) Scroll(amount int) {
+	if amount == 0 {
+		return
+	}
+
+	p.sem.Lock()
+	p.scrolled = true
+	p.scroll += amount
+	if p.scroll > len(p.list) {
+		p.scroll = len(p.list)
+	}
+
+	if p.scroll < -len(p.list) {
+		p.scroll = -len(p.list)
+	}
+
+	p.updated(true)
+	p.sem.Unlock()
+}
+
+func (p *Playlist) ResetScroll() {
+	p.sem.Lock()
+	p.scroll = 0
+	p.scrolled = false
+	p.updated(true)
+	p.sem.Unlock()
+}
+
 func (p *Playlist) Surrounding(amount int) (firstIndex int, activeIndex int, r []search.Result) {
 	p.sem.RLock()
 	r = make([]search.Result, 0, amount)
-	activeIndex = p.Index()
+	activeIndex = p.i - 1
+	if activeIndex < 0 {
+		activeIndex = 0
+	}
+
 	offset := activeIndex - amount/2
+	if p.scrolled {
+		offset = p.scroll
+	}
+
 	if offset+amount/2 >= len(p.list)-amount/2 {
 		offset = len(p.list) - amount
 	}
+
 	if offset < 0 {
 		offset = 0
 	}
+
+	p.scroll = offset
 
 	firstIndex = offset
 	activeIndex -= offset
@@ -252,7 +302,7 @@ func (p *Playlist) Truncate() {
 	p.sem.Lock()
 	p.list = make([]*command.Command, 0, cap(p.list))
 	p.i = 0
-	p.changed = true
+	p.updated(false)
 	p.sem.Unlock()
 }
 
@@ -266,7 +316,7 @@ func (p *Playlist) Read() *command.Command {
 
 	r := p.list[p.i]
 	p.i++
-	p.changed = true
+	p.updated(false)
 	p.sem.Unlock()
 	return r
 }
@@ -283,16 +333,18 @@ func (p *Playlist) At(ix int) *command.Command {
 }
 
 func (p *Playlist) Next(i int) {
-	p.sem.Lock()
-
-	if i >= 1 {
-		p.i += i - 1
-		if p.i > len(p.list)+1 {
-			p.i = len(p.list) + 1
-		}
+	if i <= 1 {
+		return
 	}
 
-	p.changed = true
+	p.sem.Lock()
+
+	p.i += i - 1
+	if p.i > len(p.list)+1 {
+		p.i = len(p.list) + 1
+	}
+
+	p.updated(false)
 	p.sem.Unlock()
 }
 
@@ -313,12 +365,13 @@ func (p *Playlist) Prev(i int) {
 
 		p.i -= i
 
-		if p.i < 0 {
-			p.i = 0
-		}
 	}
 
-	p.changed = true
+	if p.i < 0 {
+		p.i = 0
+	}
+
+	p.updated(false)
 	p.sem.Unlock()
 }
 
@@ -339,7 +392,7 @@ func (p *Playlist) SetIndex(i int) {
 		i = 0
 	}
 	p.i = i
-	p.changed = true
+	p.updated(false)
 	select {
 	case p.d <- struct{}{}:
 	default:
@@ -372,13 +425,15 @@ func (p *Playlist) Move(from, to int) {
 		p.list[to] = s
 
 		switch {
+		case from == p.i-1:
+			p.i = to + 1
 		case from < p.i-1 && to >= p.i-1:
 			p.i--
 		case from > p.i-1 && to <= p.i-1:
 			p.i++
 		}
 
-		p.changed = true
+		p.updated(false)
 	}
 	p.sem.Unlock()
 }

@@ -4,10 +4,9 @@ import (
 	"errors"
 	"net"
 	"os"
+	"os/signal"
 	"os/user"
 	"path"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/frizinak/ym/audio"
@@ -17,11 +16,16 @@ import (
 	"github.com/frizinak/ym/player"
 	"github.com/frizinak/ym/playlist"
 	"github.com/frizinak/ym/search"
-	"github.com/frizinak/ym/terminal"
 	"github.com/frizinak/ym/ym"
 )
 
-func getPlaylist(cacheDir string) (*playlist.Playlist, error) {
+const (
+	VIEW_PLAYLIST = iota
+	VIEW_SEARCH
+	VIEW_INFO
+)
+
+func getPlaylist(cacheDir string, ch chan struct{}) (*playlist.Playlist, error) {
 	var f string
 	var e bool
 	if cacheDir != "" {
@@ -31,7 +35,7 @@ func getPlaylist(cacheDir string) (*playlist.Playlist, error) {
 		}
 	}
 
-	pl := playlist.New(f, 100)
+	pl := playlist.New(f, 100, ch)
 	if e {
 		if err := pl.Load(); err != nil {
 			return pl, err
@@ -51,6 +55,14 @@ func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
 }
 
 func main() {
+	if err := initTerm(); err != nil {
+		panic(err)
+	}
+
+	quit := make(chan struct{}, 0)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, os.Kill)
+
 	errChan := make(chan error, 0)
 
 	yt, err := search.NewYoutube(time.Second * 5)
@@ -78,7 +90,8 @@ func main() {
 	)
 
 	dls := getCache(path.Join(cacheDir, "downloads"), e)
-	pl, err := getPlaylist(cacheDir)
+	playlistChan := make(chan struct{}, 1)
+	pl, err := getPlaylist(cacheDir, playlistChan)
 	if pl == nil {
 		panic(err)
 	}
@@ -94,7 +107,7 @@ func main() {
 
 	if err != nil {
 		go func() {
-			errChan <- errors.New("Could not load playlist")
+			errChan <- errors.New("Could not load playlist " + err.Error())
 		}()
 	}
 
@@ -108,37 +121,37 @@ func main() {
 
 	// ignore error
 	go ym.Listen()
+	titleChan := make(chan *status, 100)
+	go func() {
+		for range signals {
+			titleChan <- &status{msg: "Saving playlist and quitting"}
+			quit <- struct{}{}
+			pl.Save(true)
+			closeTerm()
+			os.Exit(0)
+		}
+	}()
 
 	var cmd *command.Command
-	var ocmd *command.Command
-	cmds := make([]*command.Command, 0, 1)
-	if len(os.Args) > 1 {
-		cmds = append(cmds, command.New(strings.Join(os.Args[1:], " ")))
-	}
-
 	history := history.New(20)
 
-	playChan := make(chan *command.Command, 2000)
+	playChan := make(chan *command.Command, 100)
 	currentChan := make(chan search.Result, 0)
 
 	statusChan := make(chan string, 0)
 	go func() {
-		if err := ym.Play(playChan, currentChan, statusChan, errChan); err != nil {
+		if err := ym.Play(playChan, currentChan, statusChan, errChan, quit); err != nil {
 			panic(err)
 		}
 	}()
 
-	terminal.Clear()
-
-	titleChan := make(chan *status, 100)
 	go func() {
 		for err := range errChan {
 			titleChan <- &status{err.Error(), time.Second * 5}
 		}
 	}()
 
-	statusCurrentChan := make(chan search.Result, 0)
-	go printStatus(titleChan, statusCurrentChan, statusChan)
+	go printStatus(titleChan, currentChan, statusChan)
 
 	resultsChan := make(chan []search.Result, 0)
 	go printResults(resultsChan)
@@ -146,15 +159,17 @@ func main() {
 	infoChan := make(chan search.Info, 0)
 	go printInfo(infoChan)
 
-	playlistChan := make(chan struct{}, 0)
-	go printPlaylist(pl, playlistChan)
+	playlistTriggerChan := make(chan struct{}, 0)
+	go printPlaylist(pl, playlistTriggerChan)
 
-	view := "playlist"
+	view := VIEW_PLAYLIST
 	go func() {
-		for r := range currentChan {
-			statusCurrentChan <- r
-			if view == "playlist" {
-				playlistChan <- struct{}{}
+		for {
+			select {
+			case <-playlistChan:
+				if view == VIEW_PLAYLIST {
+					playlistTriggerChan <- struct{}{}
+				}
 			}
 		}
 	}()
@@ -179,24 +194,26 @@ func main() {
 	}()
 
 	var info search.Result
+
 	for {
 		switch view {
-		case "playlist":
-			playlistChan <- struct{}{}
-		case "results":
+		case VIEW_PLAYLIST:
+			titleChan <- &status{msg: "Playlist"}
+			playlistTriggerChan <- struct{}{}
+		case VIEW_SEARCH:
 			title, r := history.Current()
 			titleChan <- &status{msg: title}
 			resultsChan <- r
-		case "info":
+		case VIEW_INFO:
 			if info == nil {
-				view = "results"
+				view = VIEW_SEARCH
 				continue
 			}
 
 			i, err := info.Info()
 			if err != nil {
 				errChan <- err
-				view = "results"
+				view = VIEW_SEARCH
 				continue
 			}
 
@@ -204,112 +221,110 @@ func main() {
 			titleChan <- &status{msg: "Info:" + info.Title()}
 		}
 
-		if len(cmds) == 0 {
-			if cmds, err = prompt(); err != nil {
-				panic(err)
-			}
+		//if len(cmds) == 0 {
+		//if cmd == nil {
+		if cmd, err = prompt(cmd); err != nil {
+			panic(err)
 		}
+		//}
 
-		if len(cmds) == 0 {
+		if cmd == nil || !cmd.Done() {
 			continue
 		}
 
-		cmd = cmds[0]
-		cmds = cmds[1:]
-
-		if view != "results" && view != "playlist" {
-			view = "results"
+		if cmd.Exit() {
+			signals <- os.Interrupt
 			continue
 		}
 
-		if cmd.Cmd() == ':' {
-			switch cmd.Arg(0) {
-			case "list", "queue", "playlist":
-				view = "playlist"
-				titleChan <- &status{msg: "Playlist"}
-				continue
-			}
+		//cmd = cmds[0]
+		//cmds = cmds[1:]
+
+		if view != VIEW_SEARCH && view != VIEW_PLAYLIST {
+			view = VIEW_SEARCH
+			continue
 		}
 
-		switch cmd.Arg(0) {
-		case "<", "back":
-			if view == "playlist" {
-				view = "results"
+		switch {
+		case cmd.Playlist():
+			view = VIEW_PLAYLIST
+			pl.ResetScroll()
+			continue
+		case cmd.Back():
+			if view == VIEW_PLAYLIST {
+				view = VIEW_SEARCH
 				continue
 			}
 			history.Back()
 			continue
-		case ">", "forward":
+		case cmd.Forward():
 			history.Forward()
 			continue
 		}
 
-		if !cmd.Equal(ocmd) && !cmd.IsChoice() && !cmd.IsCmd() {
-			view = "results"
-			titleChan <- &status{msg: "Searching: " + cmd.ArgStr()}
-			r, err := ym.ExecSearch(cmd.ArgStr())
+		if cmd.IsText() {
+			qry := cmd.String()
+			if qry == "" && view == VIEW_PLAYLIST {
+				view = VIEW_SEARCH
+				continue
+			}
+
+			view = VIEW_SEARCH
+			titleChan <- &status{msg: "Searching: " + qry}
+			r, err := ym.ExecSearch(qry)
 			if err != nil {
 				errChan <- err
 				continue
 			}
-			history.Write(cmd.ArgStr(), r)
-			ocmd = cmd
+			history.Write(qry, r)
 			continue
 		}
 
 		_, cur := history.Current()
-		switch view {
-		case "results":
-			if cmd.Choice() > 0 && cmd.Choice() <= len(cur) {
-				r := cur[cmd.Choice()-1]
-				if r.IsPlayList() {
-					if cur, err = r.PlaylistResults(time.Second * 5); err != nil {
-						errChan <- err
-						continue
-					}
-					history.Write("Playlist: "+r.Title(), cur)
-					continue
-				}
 
-				if cmd.Cmd() == ':' {
-					info = r
-					view = "info"
+		switch view {
+		case VIEW_SEARCH:
+			if i := cmd.Info(); i != 0 && i <= len(cur) {
+				r := cur[i-1]
+				info = r
+				view = VIEW_INFO
+				continue
+			}
+
+			choices := cmd.Choices()
+			if len(choices) == 0 {
+				break
+			}
+
+			for _, choice := range choices {
+				r := cur[choice-1]
+				if r.IsPlayList() {
+					if len(choices) == 1 {
+						if cur, err = r.PlaylistResults(time.Second * 5); err != nil {
+							errChan <- err
+							continue
+						}
+						history.Write("Playlist: "+r.Title(), cur)
+					}
 					continue
 				}
 
 				cacheChan <- r
-				cmd.SetResult(r)
-				pl.Add(cmd)
-				continue
+				pl.Add(cmd.Clone().SetResult(r))
 			}
-		case "playlist":
-			if cmd.Cmd() == ':' {
-				switch {
-				case cmd.Arg(0) != "" && strings.HasPrefix("delete", cmd.Arg(0)):
-					which, err := strconv.Atoi(cmd.Arg(1))
-					if err != nil {
-						break
-					}
-					which--
-
-					ix := pl.Index()
-					pl.Del(which)
-					if ix != which {
-						continue
-					}
-					cmd = command.New(":next")
-				case cmd.Choice() > 0 && cmd.Choice() <= pl.Length():
-					r := pl.At(cmd.Choice() - 1)
-					if r == nil {
-						continue
-					}
-					info = r.Result()
-					view = "info"
+			continue
+		case VIEW_PLAYLIST:
+			if i := cmd.Info(); i > 0 && i <= pl.Length() {
+				r := pl.At(i - 1)
+				if r == nil {
 					continue
 				}
+				info = r.Result()
+				view = VIEW_INFO
+				continue
 			}
 		default:
-			view = "results"
+			view = VIEW_SEARCH
 			continue
 		}
 

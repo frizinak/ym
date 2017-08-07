@@ -6,11 +6,11 @@ import (
 	"time"
 
 	runewidth "github.com/mattn/go-runewidth"
+	termbox "github.com/nsf/termbox-go"
 
 	"github.com/frizinak/ym/command"
 	"github.com/frizinak/ym/playlist"
 	"github.com/frizinak/ym/search"
-	"github.com/frizinak/ym/terminal"
 )
 
 type status struct {
@@ -25,7 +25,7 @@ func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
 	var result search.Result
 
 	print := func() {
-		w, _ := terminal.Dimensions()
+		w, _ := termSize()
 		title := "-"
 		if result != nil {
 			title = result.Title()
@@ -88,7 +88,7 @@ func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
 
 func printResults(c <-chan []search.Result) {
 	for results := range c {
-		w, h := terminal.Dimensions()
+		w, h := termSize()
 		h -= 3
 		amount := len(results)
 		if h < amount {
@@ -122,7 +122,7 @@ func printResults(c <-chan []search.Result) {
 
 func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
 	for range c {
-		w, h := terminal.Dimensions()
+		w, h := termSize()
 		h -= 3
 		offset, ix, results := pl.Surrounding(h)
 
@@ -170,7 +170,7 @@ func printInfo(c <-chan search.Info) {
 			i.Created(),
 		)
 
-		_, h := terminal.Dimensions()
+		_, h := termSize()
 		h -= 3
 		for j, f := range formats {
 			items[j+5] = fmt.Sprintf(
@@ -196,26 +196,111 @@ func printInfo(c <-chan search.Info) {
 }
 
 func clearAndPrompt(from, til int) {
-	for i := from; i < til; i++ {
+	for i := from; i < til-1; i++ {
 		fmt.Printf(
 			"\033[%d;0f\033[K",
 			i+2,
 		)
 	}
-	fmt.Printf("\033[%d:0f> \033[K\033[s\n\033[K\033[u", til)
+	fmt.Print("\033[u")
 }
 
-func prompt() ([]*command.Command, error) {
-	in, err := terminal.Prompt()
-	if err != nil {
-		return nil, err
+func initTerm() error {
+	if err := termbox.Init(); err != nil {
+		return err
 	}
 
-	sp := strings.Split(in, ",")
-	commands := make([]*command.Command, 0, 2*len(sp))
-	for _, cmd := range sp {
-		commands = append(commands, command.New(cmd))
+	_, y := termbox.Size()
+	termbox.SetCursor(2, y-2)
+	return termbox.Flush()
+}
+
+func termSize() (int, int) {
+	w, h := termbox.Size()
+	if w < 10 {
+		w = 10
 	}
 
-	return commands, nil
+	if h < 5 {
+		h = 5
+	}
+
+	return w, h
+}
+
+func closeTerm() {
+	termbox.Close()
+}
+
+func prompt(c *command.Command) (*command.Command, error) {
+	if c == nil || c.Done() {
+		c = command.New(make([]rune, 0, 1))
+	}
+
+	_, height := termbox.Size()
+	print := func(str string) {
+		termbox.SetCursor(2+runewidth.StringWidth(str), height-2)
+		fmt.Printf("\033[%d;0f> \033[K%s\033[s", height-1, str)
+		termbox.Flush()
+	}
+
+	print(c.String())
+	for {
+		e := termbox.PollEvent()
+		switch e.Type {
+		case termbox.EventInterrupt:
+			return command.New([]rune(":exit")), nil
+		case termbox.EventKey:
+			switch e.Key {
+			case termbox.KeyCtrlQ, termbox.KeyCtrlC:
+				return command.New([]rune(":exit")).SetDone(), nil
+
+			case termbox.KeyCtrlU:
+				return command.New([]rune(fmt.Sprintf(":scroll %d", -height/2))).SetDone(), nil
+
+			case termbox.KeyCtrlD:
+				return command.New([]rune(fmt.Sprintf(":scroll %d", height/2))).SetDone(), nil
+
+			case termbox.KeyBackspace, termbox.KeyBackspace2:
+				c.Pop()
+
+			case termbox.KeyEnter:
+				e.Ch = 0
+				c.SetDone()
+
+			case termbox.KeySpace:
+				e.Ch = ' '
+
+			case termbox.KeyArrowLeft:
+				if len(c.Buffer()) == 0 {
+					e.Ch = '<'
+				}
+
+			case termbox.KeyArrowRight:
+				if len(c.Buffer()) == 0 {
+					e.Ch = '>'
+				}
+
+			case termbox.KeyArrowUp:
+				return command.New([]rune(":vol +1")).SetDone(), nil
+
+			case termbox.KeyArrowDown:
+				return command.New([]rune(":vol -1")).SetDone(), nil
+			}
+
+			if e.Ch != 0 {
+				c.Append(e.Ch)
+			}
+
+			if c.Done() {
+				print("")
+				return c, nil
+			}
+			print(c.String())
+		case termbox.EventResize:
+			_, height = termbox.Size()
+			print(c.String())
+			return c, nil
+		}
+	}
 }

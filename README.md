@@ -18,18 +18,20 @@ WIP
 `> 1,2`
 
 
-# Skip Humble and go straight for rihanna
-
-`> :next`
-
-
 # Other commands:
 
-- list, queue: view queue
-- clear: clear queue
-- pause: silence
-- `<`, back: go back
-- `>`, forward: go forward
+- `:list`: view queue
+- `:clear`: clear queue
+- `:mov <i> <j>`: move item at index i to index j
+- `:del <i>`: remove item at index i from the queue
+- `:<i>`: show info about item at index i
+- `C-d`: scroll down
+- `C-u`: scroll up
+- `.` or space: pause
+- `<` or left arrow key: previous song
+- `>` or right arrow key: next song
+
+- `C-q`, `C-c`, `:q`, `:exit`: quit
 
 
 # Thx
@@ -37,3 +39,5 @@ WIP
 - https://github.com/rylio/ytdl
 - https://github.com/PuerkitoBio/goquery
 - https://github.com/mattn/go-runewidth
+- https://github.com/nsf/termbox-go
+
