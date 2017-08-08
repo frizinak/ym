@@ -128,7 +128,6 @@ func (p *Playlist) Load() error {
 	raw := make([]*storable, 0)
 	dec := gob.NewDecoder(r)
 	if err := dec.Decode(&raw); err != nil {
-		os.Exit(4)
 		return err
 	}
 
