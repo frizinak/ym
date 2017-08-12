@@ -87,6 +87,7 @@ func main() {
 
 	e, _ := audio.FindSupportedExtractor(
 		audio.NewFFMPEG(),
+		audio.NewMEncoder(),
 	)
 
 	dls := getCache(path.Join(cacheDir, "downloads"), e)
