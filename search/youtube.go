@@ -2,7 +2,7 @@ package search
 
 import (
 	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -123,24 +123,26 @@ func (y *YoutubeResult) getInfo() error {
 	return nil
 }
 
-func (y *YoutubeResult) Marshal() []byte {
+func (y *YoutubeResult) Marshal() (string, error) {
 	var b bytes.Buffer
-	enc := gob.NewEncoder(&b)
-	enc.Encode([]string{y.id, y.url.String(), y.title})
+	enc := json.NewEncoder(&b)
+	if err := enc.Encode([]string{y.id, y.title}); err != nil {
+		return "", err
+	}
 
-	return b.Bytes()
+	return b.String(), nil
 }
 
-func (y *YoutubeResult) Unmarshal(b []byte) error {
-	dec := gob.NewDecoder(bytes.NewReader(b))
+func (y *YoutubeResult) Unmarshal(b string) error {
+	dec := json.NewDecoder(strings.NewReader(b))
 	var d []string
 	if err := dec.Decode(&d); err != nil {
 		return err
 	}
 
 	y.id = d[0]
-	y.url, _ = url.Parse(d[1])
-	y.title = d[2]
+	y.url, _ = url.Parse("https://youtube.com/watch?v=" + d[0])
+	y.title = d[1]
 	y.info = nil
 
 	return nil

@@ -29,7 +29,7 @@ func getPlaylist(cacheDir string, ch chan struct{}) (*playlist.Playlist, error) 
 	var f string
 	var e bool
 	if cacheDir != "" {
-		f = path.Join(cacheDir, "playlist.gob")
+		f = path.Join(cacheDir, "playlist")
 		if _, err := os.Stat(f); err == nil || !os.IsNotExist(err) {
 			e = true
 		}
@@ -105,6 +105,31 @@ func main() {
 		}
 	}()
 
+	cacheChan := make(chan search.Result, 2000)
+	go func() {
+		for entry := range cacheChan {
+			if entry == nil || dls.Get(entry.ID()) != nil {
+				continue
+			}
+
+			u, err := entry.DownloadURL()
+			if err != nil {
+				continue
+			}
+
+			err = dls.Set(cache.NewEntry(entry.ID(), "mp4", u))
+			if err != nil {
+				errChan <- err
+			}
+		}
+	}()
+
+	go func() {
+		for _, cmd := range pl.List() {
+			cacheChan <- cmd.Result()
+		}
+	}()
+
 	if err != nil {
 		go func() {
 			errChan <- errors.New("Could not load playlist " + err.Error())
@@ -170,25 +195,6 @@ func main() {
 				if view == VIEW_PLAYLIST {
 					playlistTriggerChan <- struct{}{}
 				}
-			}
-		}
-	}()
-
-	cacheChan := make(chan search.Result, 2000)
-	go func() {
-		for entry := range cacheChan {
-			if dls.Get(entry.ID()) != nil {
-				continue
-			}
-
-			u, err := entry.DownloadURL()
-			if err != nil {
-				continue
-			}
-
-			err = dls.Set(cache.NewEntry(entry.ID(), "mp4", u))
-			if err != nil {
-				errChan <- err
 			}
 		}
 	}()

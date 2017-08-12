@@ -40,8 +40,7 @@ func (c *Command) SetDone() *Command {
 func (c *Command) IsText() bool {
 	return !(c.Next() || c.Prev() || c.Pause()) &&
 		(len(c.buf) == 0 || c.buf[0] != ':') &&
-		len(c.Choices()) == 0 &&
-		c.Info() == 0
+		len(c.Choices()) == 0
 }
 
 func (c *Command) String() string        { return string(c.buf) }
@@ -92,18 +91,13 @@ func (c *Command) Move() (from int, to int) {
 	return
 }
 
-func (c *Command) Delete() int {
+func (c *Command) Delete() []int {
 	s := c.fields("delete", 1)
 	if s == nil {
-		return 0
+		return nil
 	}
 
-	f, err := strconv.Atoi(s[0])
-	if err != nil || f <= 0 {
-		return 0
-	}
-
-	return f
+	return getInts(s[0])
 }
 
 func (c *Command) Scroll() int {
@@ -167,25 +161,12 @@ func (c *Command) Forward() bool {
 }
 
 func (c *Command) Exit() bool {
-	return c.String() == ":exit" || c.String() == ":q" || c.String() == ":quit"
+	str := c.String()
+	return str == ":exit" || str == ":q" || str == ":quit"
 }
 
 func (c *Command) Choices() []int {
-	s := strings.FieldsFunc(c.String(), func(r rune) bool {
-		return r == ' ' || r == ','
-	})
-
-	ints := make([]int, 0, len(s))
-	for i := range s {
-		in, err := strconv.Atoi(s[i])
-		if err != nil || in <= 0 {
-			return nil
-		}
-
-		ints = append(ints, in)
-	}
-
-	return ints
+	return getInts(c.String())
 }
 
 func (c *Command) Choice() int {
@@ -225,5 +206,57 @@ func (c *Command) Buffer() []rune {
 }
 
 func New(buffer []rune) *Command {
+	if buffer == nil {
+		buffer = make([]rune, 0)
+	}
+
 	return &Command{buffer, nil, false}
+}
+
+func getInts(str string) []int {
+	s := strings.FieldsFunc(str, func(r rune) bool { return r == ',' })
+
+	ints := make([]int, 0, len(s))
+	for i := range s {
+		rng := strings.FieldsFunc(s[i], func(r rune) bool { return r == '-' })
+		if len(rng) == 2 {
+			rngInts := getRange(rng[0], rng[1])
+			if rngInts != nil {
+				ints = append(ints, rngInts...)
+				continue
+			}
+		}
+
+		in, err := strconv.Atoi(s[i])
+		if err != nil || in <= 0 {
+			return nil
+		}
+
+		ints = append(ints, in)
+	}
+
+	return ints
+}
+
+func getRange(from, to string) []int {
+	f, err := strconv.Atoi(from)
+	if err != nil {
+		return nil
+	}
+
+	t, err := strconv.Atoi(to)
+	if err != nil {
+		return nil
+	}
+
+	if f > t {
+		return nil
+	}
+
+	ints := make([]int, 0, t-f+1)
+	for i := f; i <= t; i++ {
+		ints = append(ints, i)
+	}
+
+	return ints
 }

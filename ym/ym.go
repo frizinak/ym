@@ -132,7 +132,6 @@ func (ym *YM) Play(
 	quit <-chan struct{},
 ) error {
 	var commands chan player.Command
-	//var sem sync.Mutex
 
 	iq := make(chan *command.Command, 0)
 	wait := make(chan func(), 0)
@@ -220,12 +219,16 @@ func (ym *YM) Play(
 			} else if from, to := cmd.Move(); from != 0 && to != 0 {
 				ym.playlist.Move(from-1, to-1)
 
-			} else if i := cmd.Delete() - 1; i != -1 {
+			} else if ints := cmd.Delete(); len(ints) != 0 {
 				ix := ym.playlist.Index()
-				ym.playlist.Del(i)
-				if ix == i {
-					c = player.CMD_STOP
+				for i := range ints {
+					ints[i]--
+					if ix == ints[i] {
+						c = player.CMD_STOP
+					}
 				}
+
+				ym.playlist.Del(ints)
 
 			} else if cmd.Clear() {
 				ym.playlist.Truncate()

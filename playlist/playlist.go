@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/binary"
-	"encoding/gob"
+	"encoding/json"
+	"io"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -14,14 +16,15 @@ import (
 	"github.com/frizinak/ym/search"
 )
 
-type storable struct {
-	Raw        []rune
-	ResultType string
-	Result     []byte
-}
+type ints []int
 
-func init() {
-	gob.Register([]*storable{})
+func (in ints) Len() int           { return len(in) }
+func (in ints) Swap(i, j int)      { in[i], in[j] = in[j], in[i] }
+func (in ints) Less(i, j int) bool { return in[i] < in[j] }
+
+type storable struct {
+	ResultType string
+	Result     string
 }
 
 // Playlist is thread safe
@@ -81,7 +84,7 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 		p.sem.RUnlock()
 	}()
 
-	enc := gob.NewEncoder(w)
+	enc := json.NewEncoder(w)
 	i := make([]byte, 5)
 
 	binary.LittleEndian.PutUint32(i, uint32(p.i))
@@ -91,21 +94,23 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 		return err
 	}
 
-	list := make([]*storable, len(p.list))
-	for i, c := range p.list {
+	for _, c := range p.list {
 		r := c.Result()
-		var d []byte
-		var to string
-		if r != nil {
-			to = search.ResultTypeName(r)
-			d = r.Marshal()
+		if r == nil {
+			continue
 		}
 
-		list[i] = &storable{c.Buffer(), to, d}
-	}
+		to := search.ResultTypeName(r)
+		d, err := r.Marshal()
+		if err != nil {
+			return err
+		}
 
-	if err = enc.Encode(list); err != nil {
-		return err
+		item := &storable{to, d}
+
+		if err = enc.Encode(item); err != nil {
+			return err
+		}
 	}
 
 	err = os.Rename(tmp, p.file)
@@ -114,6 +119,7 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 }
 
 func (p *Playlist) Load() error {
+
 	p.sem.Lock()
 	defer p.sem.Unlock()
 	f, err := os.Open(p.file)
@@ -137,23 +143,38 @@ func (p *Playlist) Load() error {
 	index := int(binary.LittleEndian.Uint32(i[:4]))
 
 	raw := make([]*storable, 0)
-	dec := gob.NewDecoder(r)
-	if err := dec.Decode(&raw); err != nil {
-		return err
+
+	var nonCritErr error
+	for {
+		b, _, err := bufio.NewReaderSize(r, 4096).ReadLine()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		item := &storable{}
+		if err := json.Unmarshal(b, item); err != nil {
+			nonCritErr = err
+			continue
+		}
+		raw = append(raw, item)
 	}
 
-	list := make([]*command.Command, len(raw))
-	for i, s := range raw {
-		c := command.New(s.Raw)
+	list := make([]*command.Command, 0, len(raw))
+	for _, s := range raw {
+		c := command.New(nil)
 		if s.ResultType != "" {
 			r := search.ResultType(s.ResultType)
 			if err := r.Unmarshal(s.Result); err != nil {
-				return err
+				nonCritErr = err
+				continue
 			}
 			c.SetResult(r)
 		}
 
-		list[i] = c
+		list = append(list, c)
 	}
 
 	p.list = list
@@ -162,7 +183,7 @@ func (p *Playlist) Load() error {
 		p.i = 0
 	}
 
-	return nil
+	return nonCritErr
 }
 
 func (p *Playlist) Add(cmd *command.Command) {
@@ -181,19 +202,39 @@ func (p *Playlist) Add(cmd *command.Command) {
 	p.sem.Unlock()
 }
 
-func (p *Playlist) Del(ix int) {
+func (p *Playlist) Del(indexes []int) {
+	ixs := make(ints, len(indexes))
+	copy(ixs, indexes)
+	sort.Sort(ixs)
+
 	p.sem.Lock()
-	if ix >= 0 && ix < len(p.list) {
-		if p.i > ix && p.i > 0 {
-			p.i--
+	done := make(map[int]struct{}, len(ixs))
+	amount := 0
+	for _, ix := range ixs {
+		if _, ok := done[ix]; ok {
+			continue
 		}
-		p.list = append(p.list[:ix], p.list[ix+1:]...)
+
+		ix -= amount
+		if ix >= 0 && ix < len(p.list) {
+			if p.i > ix && p.i > 0 {
+				p.i--
+			}
+			p.list = append(p.list[:ix], p.list[ix+1:]...)
+		}
+
+		done[ix] = struct{}{}
+		amount++
+	}
+
+	if amount != 0 {
 		p.updated(false)
 		select {
 		case p.d <- struct{}{}:
 		default:
 		}
 	}
+
 	p.sem.Unlock()
 }
 

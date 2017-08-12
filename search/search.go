@@ -53,8 +53,8 @@ type Result interface {
 
 	Title() string
 	Info() (Info, error)
-	Marshal() []byte
-	Unmarshal(b []byte) error
+	Marshal() (string, error)
+	Unmarshal(b string) error
 }
 
 type Engine interface {
