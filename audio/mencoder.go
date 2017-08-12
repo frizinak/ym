@@ -6,6 +6,7 @@ func NewMEncoder() *GenericExtractor {
 		cmd: "mencoder",
 		args: []string{
 			"-",
+			"-really-quiet",
 			"-ovc", "frameno",
 			"-oac", "mp3lame",
 			"-o", "-",
