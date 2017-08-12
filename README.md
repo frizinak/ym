@@ -2,6 +2,13 @@ WIP
 
 `go get github.com/frizinak/ym/cmd/ym`
 
+# Requirements [wip]
+
+- Playing audio: mplayer (mpv and ffplay should work soon)
+- Extracting audio (caching): none > ffmpeg > mencoder
+
+tl;dr mplayer + ffmpeg (kinda)
+
 # Search
 
 `> kendrick`
