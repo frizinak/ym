@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,11 +131,14 @@ func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
 		for i := range results {
 			title := runewidth.Truncate(
 				results[i].Title(),
-				w-1,
+				w-5,
 				"…",
 			)
 			if ix == i {
-				title = fmt.Sprintf("\033[30;42m%s\033[0m", title)
+				title = fmt.Sprintf(
+					"\033[30;42m%-"+strconv.Itoa(w-5)+"s\033[0m",
+					title,
+				)
 			}
 
 			fmt.Printf(
