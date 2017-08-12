@@ -219,9 +219,13 @@ func (p *Playlist) Surrounding(amount int) (firstIndex int, activeIndex int, r [
 	r = make([]search.Result, 0, amount)
 	activeIndex = p.Index()
 	offset := activeIndex - amount/2
+	if offset+amount/2 >= len(p.list)-amount/2 {
+		offset = len(p.list) - amount
+	}
 	if offset < 0 {
 		offset = 0
 	}
+
 	firstIndex = offset
 	activeIndex -= offset
 
