@@ -25,3 +25,6 @@
 [submodule "vendor/github.com/nsf/termbox-go"]
 	path = vendor/github.com/nsf/termbox-go
 	url = https://github.com/nsf/termbox-go
+[submodule "vendor/github.com/YouROK/go-mpv"]
+	path = vendor/github.com/YouROK/go-mpv
+	url = https://github.com/YouROK/go-mpv

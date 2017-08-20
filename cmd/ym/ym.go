@@ -46,12 +46,8 @@ func getPlaylist(cacheDir string, ch chan struct{}) (*playlist.Playlist, error) 
 }
 
 func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
-	if cacheDir != "" {
-		dls, _ := cache.New(e, cacheDir, path.Join(os.TempDir(), "ym"))
-		return dls
-	}
-
-	return nil
+	dls, _ := cache.New(e, cacheDir, path.Join(os.TempDir(), "ym"))
+	return dls
 }
 
 func main() {
@@ -71,8 +67,8 @@ func main() {
 	}
 
 	p, err := player.FindSupportedPlayer(
+		player.NewLibMPV(),
 		player.NewMPlayer(),
-		player.NewMPV(), // TODO fix pause
 		player.NewFFPlay(),
 	)
 
