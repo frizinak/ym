@@ -66,8 +66,9 @@ func main() {
 		panic(err)
 	}
 
+	volumeChan := make(chan int, 0)
 	p, err := player.FindSupportedPlayer(
-		player.NewLibMPV(),
+		player.NewLibMPV(volumeChan),
 		player.NewMPlayer(),
 		player.NewFFPlay(),
 	)
@@ -162,18 +163,25 @@ func main() {
 
 	statusChan := make(chan string, 0)
 	go func() {
-		if err := ym.Play(playChan, currentChan, statusChan, errChan, quit); err != nil {
+		err := ym.Play(
+			playChan,
+			currentChan,
+			statusChan,
+			errChan,
+			quit,
+		)
+		if err != nil {
 			panic(err)
 		}
 	}()
 
 	go func() {
 		for err := range errChan {
-			titleChan <- &status{err.Error(), time.Second * 5}
+			titleChan <- &status{"Error: " + err.Error(), time.Second * 5}
 		}
 	}()
 
-	go printStatus(titleChan, currentChan, statusChan)
+	go printStatus(titleChan, currentChan, statusChan, volumeChan)
 
 	resultsChan := make(chan []search.Result, 0)
 	go printResults(resultsChan)

@@ -19,7 +19,13 @@ type status struct {
 	timeout time.Duration
 }
 
-func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
+func printStatus(
+	q <-chan *status,
+	r <-chan search.Result,
+	s <-chan string,
+	v <-chan int,
+) {
+	var volume int
 	var lstatus string
 	lstatusChan := make(chan string, 0)
 	rstatus := "-"
@@ -37,7 +43,7 @@ func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
 		}
 
 		left := fmt.Sprintf(" %s ", strings.TrimSpace(lstatus))
-		right := fmt.Sprintf(" %s: %s ", rstatus, title)
+		right := fmt.Sprintf(" [%d%%] %s: %s ", volume, rstatus, title)
 		lw := runewidth.StringWidth(left)
 		rw := runewidth.StringWidth(right)
 		diff := lw + rw - w + 10
@@ -82,6 +88,8 @@ func printStatus(q <-chan *status, r <-chan search.Result, s <-chan string) {
 		case result = <-r:
 			print()
 		case rstatus = <-s:
+			print()
+		case volume = <-v:
 			print()
 		}
 	}

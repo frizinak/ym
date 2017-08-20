@@ -7,15 +7,19 @@ import (
 )
 
 type LibMPV struct {
-	cmdPause map[bool]string
+	cmdPause   map[bool]string
+	volume     float64
+	volumeChan chan<- int
 }
 
-func NewLibMPV() Player {
+func NewLibMPV(volume chan<- int) Player {
 	return &LibMPV{
 		map[bool]string{
 			true:  "yes",
 			false: "no",
 		},
+		100,
+		volume,
 	}
 }
 
@@ -23,6 +27,8 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 	commands := make(chan Command, 0)
 
 	p := mpv.Create()
+	m.adjustVolume(p, 0)
+
 	c := make(chan *mpv.Event)
 	go func() {
 		for {
@@ -63,10 +69,10 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 				break outer
 
 			case CMD_VOL_DOWN:
-				adjustVolume(p, -5)
+				m.adjustVolume(p, -5)
 
 			case CMD_VOL_UP:
-				adjustVolume(p, 5)
+				m.adjustVolume(p, 5)
 			}
 		}
 
@@ -86,21 +92,20 @@ func (m *LibMPV) Supported() bool {
 	return true
 }
 
-func adjustVolume(p *mpv.Mpv, adjustment float64) error {
-	s, err := p.GetProperty("volume", mpv.FORMAT_DOUBLE)
-	if err != nil {
-		return err
+func (m *LibMPV) adjustVolume(p *mpv.Mpv, adjustment float64) error {
+	m.volume += adjustment
+	if m.volume < 0 {
+		m.volume = 0
+	} else if m.volume > 100 {
+		m.volume = 100
 	}
 
-	vol := s.(float64)
-	vol += adjustment
-	if vol < 0 {
-		vol = 0
-	} else if vol > 100 {
-		vol = 100
-	}
+	p.SetProperty("volume", mpv.FORMAT_DOUBLE, m.volume)
 
-	p.SetProperty("volume", mpv.FORMAT_DOUBLE, vol)
+	select {
+	case m.volumeChan <- int(m.volume):
+	default:
+	}
 
 	return nil
 }

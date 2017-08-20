@@ -4,10 +4,8 @@ WIP
 
 # Requirements [wip]
 
-- Playing audio: mplayer (mpv and ffplay should work soon)
+- Playing audio: libmpv / mplayer
 - Extracting audio (caching): none > ffmpeg > mencoder
-
-tl;dr mplayer + ffmpeg (kinda)
 
 # Search
 
