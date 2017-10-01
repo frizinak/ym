@@ -255,6 +255,11 @@ func (ym *YM) Play(
 					c = player.CMD_VOL_DOWN
 				}
 
+			} else if cmd.SeekBack() {
+				c = player.CMD_SEEK_BACKWARD
+			} else if cmd.SeekForward() {
+				c = player.CMD_SEEK_FORWARD
+
 			} else if cmd.Rand() {
 				ym.playlist.ToggleRandom()
 			}

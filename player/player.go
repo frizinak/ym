@@ -13,6 +13,8 @@ const (
 	CMD_PREV
 	CMD_VOL_UP
 	CMD_VOL_DOWN
+	CMD_SEEK_FORWARD
+	CMD_SEEK_BACKWARD
 
 	PARAM_NO_VIDEO Param = "no-video"
 	PARAM_SILENT   Param = "silent"

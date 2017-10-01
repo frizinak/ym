@@ -19,6 +19,18 @@ type status struct {
 	timeout time.Duration
 }
 
+func printSeeker(s <-chan int) {
+	for pos := range s {
+		w, h := termSize()
+		h -= 2
+		line := ""
+		for p := int(float64(pos) * float64(w) / 100); p > 0; p-- {
+			line += "▬"
+		}
+		fmt.Printf("\033[%d;0f\033[K%s|\033[u", h, line)
+	}
+}
+
 func printStatus(
 	q <-chan *status,
 	r <-chan search.Result,
@@ -98,7 +110,7 @@ func printStatus(
 func printResults(c <-chan []search.Result) {
 	for results := range c {
 		w, h := termSize()
-		h -= 3
+		h -= 4
 		amount := len(results)
 		if h < amount {
 			amount = h
@@ -132,7 +144,7 @@ func printResults(c <-chan []search.Result) {
 func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
 	for range c {
 		w, h := termSize()
-		h -= 3
+		h -= 4
 		offset, ix, results := pl.Surrounding(h)
 
 		fmt.Printf("\033[2;0f\033[K")

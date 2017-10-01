@@ -28,7 +28,9 @@ func (c *Command) Pop() *Command {
 }
 
 func (c *Command) Done() bool {
-	return c.done || c.Next() || c.Prev() || c.Pause()
+	return c.done ||
+		c.Next() || c.Prev() || c.Pause() ||
+		c.SeekForward() || c.SeekBack()
 }
 
 func (c *Command) SetDone() *Command {
@@ -38,7 +40,8 @@ func (c *Command) SetDone() *Command {
 }
 
 func (c *Command) IsText() bool {
-	return !(c.Next() || c.Prev() || c.Pause()) &&
+	return !(c.Next() || c.Prev() || c.Pause() ||
+		c.SeekForward() || c.SeekBack()) &&
 		(len(c.buf) == 0 || c.buf[0] != ':') &&
 		len(c.Choices()) == 0
 }
@@ -54,6 +57,10 @@ func (c *Command) SetResult(r search.Result) *Command {
 
 func (c *Command) Prev() bool { return len(c.buf) == 1 && c.buf[0] == '<' }
 func (c *Command) Next() bool { return len(c.buf) == 1 && c.buf[0] == '>' }
+
+func (c *Command) SeekBack() bool    { return len(c.buf) == 1 && c.buf[0] == '[' }
+func (c *Command) SeekForward() bool { return len(c.buf) == 1 && c.buf[0] == ']' }
+
 func (c *Command) Pause() bool {
 	return len(c.buf) == 1 && (c.buf[0] == '.' || c.buf[0] == ' ')
 }

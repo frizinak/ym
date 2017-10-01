@@ -35,6 +35,7 @@ type Playlist struct {
 	sem      sync.RWMutex
 	d        chan struct{}
 	i        int
+	last     int
 	changed  bool
 	update   chan<- struct{}
 	scroll   int
@@ -305,7 +306,7 @@ func (p *Playlist) ResetScroll() {
 func (p *Playlist) Surrounding(amount int) (firstIndex int, activeIndex int, r []search.Result) {
 	p.sem.RLock()
 	r = make([]search.Result, 0, amount)
-	activeIndex = p.i - 1
+	activeIndex = p.Index()
 	if activeIndex < 0 {
 		activeIndex = 0
 	}
@@ -365,6 +366,7 @@ func (p *Playlist) Read() *command.Command {
 
 	r := p.list[p.i]
 	p.i++
+	p.last = p.i
 	if p.rand {
 		p.i = rand.Intn(len(p.list))
 	}
@@ -402,7 +404,6 @@ func (p *Playlist) Next(i int) {
 
 func (p *Playlist) Prev(i int) {
 	p.sem.Lock()
-
 	select {
 	case p.d <- struct{}{}:
 		p.i = len(p.list) - 1
@@ -429,9 +430,11 @@ func (p *Playlist) Prev(i int) {
 
 func (p *Playlist) Index() int {
 	p.sem.RLock()
-	i := p.i - 1
-	p.sem.RUnlock()
-	return i
+	defer p.sem.RUnlock()
+	if p.rand {
+		return p.last - 1
+	}
+	return p.i - 1
 }
 
 func (p *Playlist) SetIndex(i int) {

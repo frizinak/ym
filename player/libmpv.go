@@ -3,6 +3,8 @@
 package player
 
 import (
+	"time"
+
 	"github.com/YouROK/go-mpv/mpv"
 )
 
@@ -10,9 +12,10 @@ type LibMPV struct {
 	cmdPause   map[bool]string
 	volume     float64
 	volumeChan chan<- int
+	seekChan   chan<- int
 }
 
-func NewLibMPV(volume chan<- int) Player {
+func NewLibMPV(volume chan<- int, seek chan<- int) Player {
 	return &LibMPV{
 		map[bool]string{
 			true:  "yes",
@@ -20,6 +23,7 @@ func NewLibMPV(volume chan<- int) Player {
 		},
 		100,
 		volume,
+		seek,
 	}
 }
 
@@ -87,7 +91,19 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 
 				case CMD_VOL_UP:
 					m.adjustVolume(p, 5)
+
+				case CMD_SEEK_BACKWARD:
+					m.seek(p, -3)
+
+				case CMD_SEEK_FORWARD:
+					m.seek(p, 3)
 				}
+			case <-time.After(time.Millisecond * 500):
+				if closed {
+					continue
+				}
+
+				m.seek(p, 0)
 			}
 		}
 	}()
@@ -103,6 +119,32 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 
 func (m *LibMPV) Supported() bool {
 	return true
+}
+
+func (m *LibMPV) seek(p *mpv.Mpv, adjustment int) error {
+	_pos, err := p.GetProperty("percent-pos", mpv.FORMAT_INT64)
+	if err != nil {
+		return err
+	}
+	pos := int(_pos.(int64))
+
+	if adjustment != 0 {
+		n := pos + adjustment
+		if n > 100 {
+			n = 100
+		} else if n < 0 {
+			n = 0
+		}
+
+		p.SetProperty("percent-pos", mpv.FORMAT_INT64, n)
+	}
+
+	select {
+	case m.seekChan <- pos:
+	default:
+	}
+
+	return nil
 }
 
 func (m *LibMPV) adjustVolume(p *mpv.Mpv, adjustment float64) error {

@@ -68,8 +68,9 @@ func main() {
 	}
 
 	volumeChan := make(chan int, 0)
+	seekChan := make(chan int, 0)
 	p, err := player.FindSupportedPlayer(
-		player.NewLibMPV(volumeChan),
+		player.NewLibMPV(volumeChan, seekChan),
 		player.NewMPlayer(),
 		player.NewFFPlay(),
 	)
@@ -178,6 +179,7 @@ func main() {
 	}()
 
 	go printStatus(titleChan, currentChan, statusChan, volumeChan)
+	go printSeeker(seekChan)
 
 	resultsChan := make(chan []search.Result, 0)
 	go printResults(resultsChan)
