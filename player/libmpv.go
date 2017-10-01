@@ -25,6 +25,7 @@ func NewLibMPV(volume chan<- int) Player {
 
 func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error) {
 	commands := make(chan Command, 0)
+	done := make(chan struct{}, 0)
 
 	p := mpv.Create()
 	m.adjustVolume(p, 0)
@@ -35,6 +36,7 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 			e := p.WaitEvent(.05)
 			if e.Event_Id == mpv.EVENT_END_FILE ||
 				e.Event_Id == mpv.EVENT_SHUTDOWN {
+				done <- struct{}{}
 				p.TerminateDestroy()
 				close(c)
 				return
@@ -58,25 +60,36 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 
 	go func() {
 		paused := false
-	outer:
-		for command := range commands {
-			switch command {
-			case CMD_PAUSE:
-				paused = !paused
-				p.SetPropertyString("pause", m.cmdPause[paused])
+		closed := false
+		for {
+			select {
+			case <-done:
+				closed = true
+			case command, ok := <-commands:
+				if !ok && closed {
+					return
+				}
 
-			case CMD_STOP:
-				break outer
+				if closed {
+					continue
+				}
 
-			case CMD_VOL_DOWN:
-				m.adjustVolume(p, -5)
+				switch command {
+				case CMD_PAUSE:
+					paused = !paused
+					p.SetPropertyString("pause", m.cmdPause[paused])
 
-			case CMD_VOL_UP:
-				m.adjustVolume(p, 5)
+				case CMD_STOP:
+					p.Command([]string{"quit"})
+
+				case CMD_VOL_DOWN:
+					m.adjustVolume(p, -5)
+
+				case CMD_VOL_UP:
+					m.adjustVolume(p, 5)
+				}
 			}
 		}
-
-		p.Command([]string{"quit"})
 	}()
 
 	wait := func() {

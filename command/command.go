@@ -145,6 +145,11 @@ func (c *Command) Clear() bool {
 	return c.fields("clear", 0) != nil
 }
 
+func (c *Command) Rand() bool {
+	str := c.String()
+	return str == ":rand" || str == ":random" || str == ":shuffle"
+}
+
 func (c *Command) Playlist() bool {
 	str := c.String()
 	return str == ":list" || str == ":queue" || str == ":playlist"

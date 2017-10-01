@@ -42,11 +42,7 @@ func (m *GenericExtractor) Extract(v io.Reader, a io.Writer) error {
 	cmd := exec.Command(m.cmd, m.args...)
 	cmd.Stdin = v
 	cmd.Stdout = a
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	return cmd.Wait()
+	return cmd.Run()
 }
 
 func (m *GenericExtractor) Ext() string {

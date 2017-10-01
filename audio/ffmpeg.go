@@ -6,7 +6,8 @@ func NewFFMPEG() *GenericExtractor {
 		args: []string{
 			"-i", "-",
 			"-vn",
-			"-acodec", "copy",
+			//"-acodec", "copy",
+			"-af", "silenceremove=1:0:0:1:0:0",
 			"-f", "adts",
 			"-",
 		},

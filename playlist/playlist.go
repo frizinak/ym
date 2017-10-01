@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -38,6 +39,7 @@ type Playlist struct {
 	update   chan<- struct{}
 	scroll   int
 	scrolled bool
+	rand     bool
 }
 
 func New(file string, size int, updates chan<- struct{}) *Playlist {
@@ -184,6 +186,12 @@ func (p *Playlist) Load() error {
 	}
 
 	return nonCritErr
+}
+
+func (p *Playlist) ToggleRandom() {
+	p.sem.Lock()
+	p.rand = !p.rand
+	p.sem.Unlock()
 }
 
 func (p *Playlist) Add(cmd *command.Command) {
@@ -357,6 +365,9 @@ func (p *Playlist) Read() *command.Command {
 
 	r := p.list[p.i]
 	p.i++
+	if p.rand {
+		p.i = rand.Intn(len(p.list))
+	}
 	p.updated(false)
 	p.sem.Unlock()
 	return r

@@ -254,12 +254,16 @@ func (ym *YM) Play(
 				if ud < 0 {
 					c = player.CMD_VOL_DOWN
 				}
+
+			} else if cmd.Rand() {
+				ym.playlist.ToggleRandom()
 			}
 
 			if c != player.CMD_NIL {
 				if commands != nil {
 					commands <- c
 					if c == player.CMD_STOP {
+						close(commands)
 						commands = nil
 					}
 				}
