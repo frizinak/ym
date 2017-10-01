@@ -2,15 +2,16 @@ package main
 
 import (
 	"errors"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
-	"os/user"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/frizinak/ym/audio"
 	"github.com/frizinak/ym/cache"
+	"github.com/frizinak/ym/cmd/config"
 	"github.com/frizinak/ym/command"
 	"github.com/frizinak/ym/history"
 	"github.com/frizinak/ym/player"
@@ -26,16 +27,15 @@ const (
 )
 
 func getPlaylist(cacheDir string, ch chan struct{}) (*playlist.Playlist, error) {
-	var f string
 	var e bool
 	if cacheDir != "" {
-		f = path.Join(cacheDir, "playlist")
-		if _, err := os.Stat(f); err == nil || !os.IsNotExist(err) {
+		_, err := os.Stat(config.Playlist)
+		if err == nil || !os.IsNotExist(err) {
 			e = true
 		}
 	}
 
-	pl := playlist.New(f, 100, ch)
+	pl := playlist.New(config.Playlist, 100, ch)
 	if e {
 		if err := pl.Load(); err != nil {
 			return pl, err
@@ -46,11 +46,12 @@ func getPlaylist(cacheDir string, ch chan struct{}) (*playlist.Playlist, error) 
 }
 
 func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
-	dls, _ := cache.New(e, cacheDir, path.Join(os.TempDir(), "ym"))
+	dls, _ := cache.New(e, cacheDir, filepath.Join(os.TempDir(), "ym"))
 	return dls
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	if err := initTerm(); err != nil {
 		panic(err)
 	}
@@ -77,19 +78,14 @@ func main() {
 		panic(err)
 	}
 
-	var cacheDir string
-	if user, err := user.Current(); err == nil {
-		cacheDir = path.Join(user.HomeDir, ".cache", "ym")
-	}
-
 	e, _ := audio.FindSupportedExtractor(
 		audio.NewFFMPEG(),
 		audio.NewMEncoder(),
 	)
 
-	dls := getCache(path.Join(cacheDir, "downloads"), e)
+	dls := getCache(config.Downloads, e)
 	playlistChan := make(chan struct{}, 1)
-	pl, err := getPlaylist(cacheDir, playlistChan)
+	pl, err := getPlaylist(config.CacheDir, playlistChan)
 	if pl == nil {
 		panic(err)
 	}
