@@ -68,7 +68,7 @@ func main() {
 	}
 
 	volumeChan := make(chan int, 0)
-	seekChan := make(chan int, 0)
+	seekChan := make(chan float64, 0)
 	p, err := player.FindSupportedPlayer(
 		player.NewLibMPV(volumeChan, seekChan),
 		player.NewMPlayer(),

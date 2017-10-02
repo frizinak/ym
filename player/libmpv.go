@@ -12,10 +12,10 @@ type LibMPV struct {
 	cmdPause   map[bool]string
 	volume     float64
 	volumeChan chan<- int
-	seekChan   chan<- int
+	seekChan   chan<- float64
 }
 
-func NewLibMPV(volume chan<- int, seek chan<- int) Player {
+func NewLibMPV(volume chan<- int, seek chan<- float64) Player {
 	return &LibMPV{
 		map[bool]string{
 			true:  "yes",
@@ -98,7 +98,7 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 				case CMD_SEEK_FORWARD:
 					m.seek(p, 3)
 				}
-			case <-time.After(time.Millisecond * 500):
+			case <-time.After(time.Millisecond * 200):
 				if closed {
 					continue
 				}
@@ -121,12 +121,12 @@ func (m *LibMPV) Supported() bool {
 	return true
 }
 
-func (m *LibMPV) seek(p *mpv.Mpv, adjustment int) error {
-	_pos, err := p.GetProperty("percent-pos", mpv.FORMAT_INT64)
+func (m *LibMPV) seek(p *mpv.Mpv, adjustment float64) error {
+	_pos, err := p.GetProperty("percent-pos", mpv.FORMAT_DOUBLE)
 	if err != nil {
 		return err
 	}
-	pos := int(_pos.(int64))
+	pos := _pos.(float64)
 
 	if adjustment != 0 {
 		n := pos + adjustment
@@ -136,11 +136,11 @@ func (m *LibMPV) seek(p *mpv.Mpv, adjustment int) error {
 			n = 0
 		}
 
-		p.SetProperty("percent-pos", mpv.FORMAT_INT64, n)
+		p.SetProperty("percent-pos", mpv.FORMAT_DOUBLE, n)
 	}
 
 	select {
-	case m.seekChan <- pos:
+	case m.seekChan <- pos / 100:
 	default:
 	}
 

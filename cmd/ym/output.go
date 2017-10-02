@@ -19,15 +19,22 @@ type status struct {
 	timeout time.Duration
 }
 
-func printSeeker(s <-chan int) {
+func printSeeker(s <-chan float64) {
 	for pos := range s {
 		w, h := termSize()
 		h -= 2
-		line := ""
-		for p := int(float64(pos) * float64(w) / 100); p > 0; p-- {
-			line += "▬"
+		w -= 1
+
+		rest, progress := "", ""
+		p := int(pos * float64(w))
+		for i := p; i > 0; i-- {
+			progress += "▬"
 		}
-		fmt.Printf("\033[%d;0f\033[K%s|\033[u", h, line)
+		for i := w - p; i > 0; i-- {
+			rest += "▬"
+		}
+
+		fmt.Printf("\033[%d;0f\033[K\033[1;32m%s|\033[0m%s\033[u", h, progress, rest)
 	}
 }
 
