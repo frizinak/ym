@@ -19,14 +19,16 @@ type status struct {
 	timeout time.Duration
 }
 
-func printSeeker(s <-chan float64) {
-	for pos := range s {
+func printSeeker(posChan <-chan float64, statusChan <-chan string) {
+	var pos float64
+	var status string
+	print := func() {
 		w, h := termSize()
 		h -= 2
-		w -= 1
+		w -= runewidth.StringWidth(status) + 2
 
 		rest, progress := "", ""
-		p := int(pos * float64(w))
+		p := int(pos * float64(w+1))
 		for i := p; i > 0; i-- {
 			progress += "▬"
 		}
@@ -34,20 +36,33 @@ func printSeeker(s <-chan float64) {
 			rest += "▬"
 		}
 
-		fmt.Printf("\033[%d;0f\033[K\033[1;32m%s|\033[0m%s\033[u", h, progress, rest)
+		fmt.Printf(
+			"\033[%d;0f\033[K\033[1;32m%s %s \033[0m%s\033[u",
+			h,
+			progress,
+			status,
+			rest,
+		)
+	}
+
+	for {
+		select {
+		case pos = <-posChan:
+			print()
+		case status = <-statusChan:
+			print()
+		}
 	}
 }
 
 func printStatus(
 	q <-chan *status,
 	r <-chan search.Result,
-	s <-chan string,
 	v <-chan int,
 ) {
 	var volume int
 	var lstatus string
 	lstatusChan := make(chan string, 0)
-	rstatus := "-"
 	var result search.Result
 
 	print := func() {
@@ -62,7 +77,7 @@ func printStatus(
 		}
 
 		left := fmt.Sprintf(" %s ", strings.TrimSpace(lstatus))
-		right := fmt.Sprintf(" [%d%%] %s: %s ", volume, rstatus, title)
+		right := fmt.Sprintf(" [🔊%d%%] %s ", volume, title)
 		lw := runewidth.StringWidth(left)
 		rw := runewidth.StringWidth(right)
 		diff := lw + rw - w + 10
@@ -72,7 +87,8 @@ func printStatus(
 				runewidth.StringWidth(title)-diff-1,
 				"…",
 			)
-			right = fmt.Sprintf(" %s: %s ", rstatus, title)
+
+			right = fmt.Sprintf(" [🔊%d%%] %s ", volume, title)
 		}
 
 		fmt.Printf(
@@ -106,8 +122,6 @@ func printStatus(
 			print()
 		case result = <-r:
 			print()
-		case rstatus = <-s:
-			print()
 		case volume = <-v:
 			print()
 		}
@@ -135,7 +149,7 @@ func printResults(c <-chan []search.Result) {
 				"\033[%d;0f\033[K\033[1;41m %02d \033[0m %s%s\n",
 				i+2,
 				i+1,
-				strings.Join(labels, " "),
+				lbls,
 				runewidth.Truncate(
 					results[i].Title(),
 					w-runewidth.StringWidth(lbls)-5,
@@ -155,21 +169,29 @@ func printPlaylist(pl *playlist.Playlist, c <-chan struct{}) {
 		offset, ix, results := pl.Surrounding(h)
 
 		fmt.Printf("\033[2;0f\033[K")
+		intLen := 0
+		for max := offset + len(results); max > 0; max /= 10 {
+			intLen++
+		}
+
+		pad := intLen + 3
+
 		for i := range results {
 			title := runewidth.Truncate(
 				results[i].Title(),
-				w-5,
+				w-pad,
 				"…",
 			)
+
 			if ix == i {
 				title = fmt.Sprintf(
-					"\033[30;42m%-"+strconv.Itoa(w-5)+"s\033[0m",
+					"\033[30;42m%-"+strconv.Itoa(w-pad)+"s\033[0m",
 					title,
 				)
 			}
 
 			fmt.Printf(
-				"\033[%d;0f\033[K\033[1;41m %02d \033[0m %s\n",
+				"\033[%d;0f\033[K\033[1;41m %0"+strconv.Itoa(intLen)+"d \033[0m %s\n",
 				i+2,
 				offset+i+1,
 				title,
@@ -283,8 +305,14 @@ func prompt(c *command.Command) (*command.Command, error) {
 			return command.New([]rune(":exit")), nil
 		case termbox.EventKey:
 			switch e.Key {
-			case termbox.KeyCtrlQ, termbox.KeyCtrlC:
+			case termbox.KeyCtrlQ:
 				return command.New([]rune(":exit")).SetDone(), nil
+
+			case termbox.KeyCtrlK:
+				return command.New([]rune(fmt.Sprintf(":scroll %d", -1))).SetDone(), nil
+
+			case termbox.KeyCtrlJ:
+				return command.New([]rune(fmt.Sprintf(":scroll %d", 1))).SetDone(), nil
 
 			case termbox.KeyCtrlU:
 				return command.New([]rune(fmt.Sprintf(":scroll %d", -height/2))).SetDone(), nil
@@ -294,6 +322,9 @@ func prompt(c *command.Command) (*command.Command, error) {
 
 			case termbox.KeyBackspace, termbox.KeyBackspace2:
 				c.Pop()
+
+			case termbox.KeyCtrlC:
+				c.Truncate()
 
 			case termbox.KeyEnter:
 				e.Ch = 0

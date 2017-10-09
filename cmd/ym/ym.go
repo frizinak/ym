@@ -178,8 +178,8 @@ func main() {
 		}
 	}()
 
-	go printStatus(titleChan, currentChan, statusChan, volumeChan)
-	go printSeeker(seekChan)
+	go printStatus(titleChan, currentChan, volumeChan)
+	go printSeeker(seekChan, statusChan)
 
 	resultsChan := make(chan []search.Result, 0)
 	go printResults(resultsChan)
@@ -280,7 +280,7 @@ func main() {
 
 			view = VIEW_SEARCH
 			titleChan <- &status{msg: "Searching: " + qry}
-			r, err := ym.ExecSearch(qry)
+			r, err := ym.ExecSearch(qry, 60)
 			if err != nil {
 				errChan <- err
 				continue

@@ -217,6 +217,10 @@ func (c *Command) Buffer() []rune {
 	return c.buf
 }
 
+func (c *Command) Truncate() {
+	c.buf = make([]rune, 0)
+}
+
 func New(buffer []rune) *Command {
 	if buffer == nil {
 		buffer = make([]rune, 0)

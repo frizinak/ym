@@ -122,17 +122,33 @@ func (m *LibMPV) Supported() bool {
 }
 
 func (m *LibMPV) seek(p *mpv.Mpv, adjustment float64) error {
-	_pos, err := p.GetProperty("percent-pos", mpv.FORMAT_DOUBLE)
+	_byteCur, err := p.GetProperty("stream-pos", mpv.FORMAT_DOUBLE)
 	if err != nil {
 		return err
 	}
-	pos := _pos.(float64)
+	_byteTotal, err := p.GetProperty("stream-end", mpv.FORMAT_DOUBLE)
+	if err != nil {
+		return err
+	}
+
+	byteTotal := _byteTotal.(float64)
+	if byteTotal < 1 {
+		byteTotal = 1
+	}
+
+	bytePos := _byteCur.(float64) / byteTotal
+	if bytePos > 1.0 {
+		bytePos = 1.0
+	}
 
 	if adjustment != 0 {
+		_pos, err := p.GetProperty("percent-pos", mpv.FORMAT_DOUBLE)
+		if err != nil {
+			return err
+		}
+		pos := _pos.(float64)
 		n := pos + adjustment
-		if n > 100 {
-			n = 100
-		} else if n < 0 {
+		if n < 0 {
 			n = 0
 		}
 
@@ -140,7 +156,7 @@ func (m *LibMPV) seek(p *mpv.Mpv, adjustment float64) error {
 	}
 
 	select {
-	case m.seekChan <- pos / 100:
+	case m.seekChan <- bytePos:
 	default:
 	}
 

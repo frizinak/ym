@@ -58,5 +58,5 @@ type Result interface {
 }
 
 type Engine interface {
-	Search(q string) ([]Result, error)
+	Search(q string, page int) ([]Result, error)
 }

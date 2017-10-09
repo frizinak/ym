@@ -2,6 +2,8 @@ package search
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -162,11 +164,18 @@ func NewYoutube(timeout time.Duration) (*Youtube, error) {
 	return &Youtube{re: re, timeout: timeout}, nil
 }
 
-func (y *Youtube) Search(q string) ([]Result, error) {
+func (y *Youtube) Search(q string, page int) ([]Result, error) {
+	pager := []byte{18, 2, 16, 1, 72, 0, 0, 0, 0, 0}
+	w := binary.PutUvarint(pager[5:], uint64(page*20))
+	pager = pager[:5+w]
+	pager = append(pager, 80, 20, 234, 3, 0)
+	sp := base64.StdEncoding.EncodeToString(pager)
+
 	u, err := url.Parse(
 		fmt.Sprintf(
-			"https://www.youtube.com/results?search_query=%s",
+			"https://www.youtube.com/results?search_query=%s&sp=%s",
 			url.QueryEscape(q),
+			url.QueryEscape(sp),
 		),
 	)
 	if err != nil {

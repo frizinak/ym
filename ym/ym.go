@@ -42,10 +42,20 @@ func New(
 	}
 }
 
-func (ym *YM) ExecSearch(q string) ([]search.Result, error) {
-	results, err := ym.search.Search(q)
-	if err != nil {
-		return nil, err
+func (ym *YM) ExecSearch(q string, amount int) ([]search.Result, error) {
+	results := make([]search.Result, 0, amount)
+	page := 0
+	for {
+		_results, err := ym.search.Search(q, page)
+		if err != nil {
+			return nil, err
+		}
+
+		page++
+		results = append(results, _results...)
+		if len(_results) == 0 || len(results) >= amount {
+			break
+		}
 	}
 
 	return results, nil
@@ -142,7 +152,7 @@ func (ym *YM) Play(
 				w()
 			}
 			ym.state = "stop"
-			status <- "Stopped"
+			status <- "■"
 			current <- nil
 			ym.current = nil
 		}
@@ -192,7 +202,7 @@ func (ym *YM) Play(
 
 			commands, w, err = ym.player.Spawn(file, params)
 			ym.state = "play"
-			status <- "Playing"
+			status <- "▶"
 			current <- result
 			wait <- w
 			ym.current = result
@@ -237,10 +247,10 @@ func (ym *YM) Play(
 			} else if cmd.Pause() {
 				switch ym.state {
 				case "pause":
-					status <- "Playing"
+					status <- "▶"
 					ym.state = "play"
 				case "play":
-					status <- "Paused"
+					status <- "⏸"
 					ym.state = "pause"
 				}
 
