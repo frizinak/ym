@@ -204,6 +204,9 @@ func main() {
 
 	var info search.Result
 
+	var lastSearch string
+	var offsetSearch int
+
 	for {
 		switch view {
 		case VIEW_PLAYLIST:
@@ -332,6 +335,18 @@ func main() {
 				view = VIEW_INFO
 				continue
 			}
+
+			if qry := cmd.Search(); qry != "" {
+				if lastSearch != qry {
+					lastSearch = qry
+					offsetSearch = 0
+				}
+
+				pl.Search(qry, &offsetSearch)
+				cmd = cmd.Clone()
+				continue
+			}
+
 		default:
 			view = VIEW_SEARCH
 			continue

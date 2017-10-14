@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -295,6 +296,13 @@ func (p *Playlist) Scroll(amount int) {
 	p.sem.Unlock()
 }
 
+func (p *Playlist) ScrollTo(index int) {
+	p.sem.RLock()
+	amount := index - p.scroll
+	p.sem.RUnlock()
+	p.Scroll(amount)
+}
+
 func (p *Playlist) ResetScroll() {
 	p.sem.Lock()
 	p.scroll = 0
@@ -454,6 +462,50 @@ func (p *Playlist) SetIndex(i int) {
 	}
 
 	p.sem.Unlock()
+}
+
+func (p *Playlist) Search(qry string, offset *int) bool {
+	p.sem.RLock()
+	o := *offset
+	if o > len(p.list) {
+		o = 0
+	}
+
+	qry = strings.ToLower(qry)
+	m := 0
+	to := -1
+
+	for i, c := range p.list {
+		r := c.Result()
+		if r == nil {
+			continue
+		}
+
+		if strings.Contains(strings.ToLower(r.Title()), qry) {
+			if m == o {
+				o++
+				to = i
+				break
+			}
+			m++
+		}
+	}
+
+	p.sem.RUnlock()
+
+	if m > 0 && to == -1 {
+		o = 0
+		*offset = o
+		return p.Search(qry, offset)
+	}
+
+	*offset = o
+	if to > -1 {
+		p.ScrollTo(to)
+		return true
+	}
+
+	return false
 }
 
 func (p *Playlist) Move(from, to int) {
