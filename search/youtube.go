@@ -185,6 +185,20 @@ func (y *Youtube) Search(q string, page int) ([]Result, error) {
 	return match(u, y.re, false, y.timeout)
 }
 
+func (y *Youtube) Page(channel string) ([]Result, error) {
+	u, err := url.Parse(
+		fmt.Sprintf(
+			"https://www.youtube.com/%s/videos",
+			channel,
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return match(u, y.re, false, y.timeout)
+}
+
 func match(u *url.URL, re *regexp.Regexp, trimPlaylist bool, to time.Duration) ([]Result, error) {
 	res, err := (&http.Client{Timeout: to}).Get(u.String())
 	if err != nil {

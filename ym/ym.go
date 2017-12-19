@@ -61,6 +61,10 @@ func (ym *YM) ExecSearch(q string, amount int) ([]search.Result, error) {
 	return results, nil
 }
 
+func (ym *YM) ExecPage(url string) ([]search.Result, error) {
+	return ym.search.Page(url)
+}
+
 func (ym *YM) Listen() error {
 	l, err := net.ListenTCP("tcp", ym.addr)
 	if err != nil {

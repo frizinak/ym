@@ -42,7 +42,7 @@ func (c *Command) SetDone() *Command {
 func (c *Command) IsText() bool {
 	return !(c.Next() || c.Prev() || c.Pause() ||
 		c.SeekForward() || c.SeekBack()) &&
-		(len(c.buf) == 0 || (c.buf[0] != ':' && c.buf[0] != '/')) &&
+		(len(c.buf) == 0 || (c.buf[0] != ':' && c.buf[0] != '/' && c.buf[0] != '!')) &&
 		len(c.Choices()) == 0
 }
 
@@ -84,6 +84,14 @@ func (c *Command) Info() int {
 	}
 
 	return 0
+}
+
+func (c *Command) Url() string {
+	if len(c.buf) > 1 && c.buf[0] == '!' {
+		return string(c.buf[1:])
+	}
+
+	return ""
 }
 
 func (c *Command) Move() (from int, to int) {

@@ -93,17 +93,17 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 					m.adjustVolume(p, 5)
 
 				case CMD_SEEK_BACKWARD:
-					m.seek(p, -3)
+					m.seek(p, -time.Second*10)
 
 				case CMD_SEEK_FORWARD:
-					m.seek(p, 3)
+					m.seek(p, time.Second*10)
 				}
 			case <-time.After(time.Millisecond * 200):
 				if closed {
 					continue
 				}
 
-				m.seek(p, 0)
+				m.seekPct(p, 0)
 			}
 		}
 	}()
@@ -121,7 +121,27 @@ func (m *LibMPV) Supported() bool {
 	return true
 }
 
-func (m *LibMPV) seek(p *mpv.Mpv, adjustment float64) error {
+func (m *LibMPV) seek(p *mpv.Mpv, adjustment time.Duration) error {
+	_cur, err := p.GetProperty("time-pos", mpv.FORMAT_INT64)
+	if err != nil {
+		return err
+	}
+
+	if adjustment != 0 {
+		cur := _cur.(int64) + int64(adjustment.Seconds())
+		if cur < 0 {
+			cur = 0
+		}
+
+		p.SetProperty("time-pos", mpv.FORMAT_INT64, cur)
+	}
+
+	m.seekPct(p, 0)
+
+	return nil
+}
+
+func (m *LibMPV) seekPct(p *mpv.Mpv, adjustment float64) error {
 	_byteCur, err := p.GetProperty("stream-pos", mpv.FORMAT_DOUBLE)
 	if err != nil {
 		return err

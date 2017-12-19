@@ -290,6 +290,16 @@ func main() {
 			}
 			history.Write(qry, r)
 			continue
+		} else if u := cmd.Url(); u != "" {
+			view = VIEW_SEARCH
+			titleChan <- &status{msg: "Page: " + u}
+			r, err := ym.ExecPage(u)
+			if err != nil {
+				errChan <- err
+				continue
+			}
+			history.Write("Page: "+u, r)
+			continue
 		}
 
 		_, cur := history.Current()
