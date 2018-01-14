@@ -2,7 +2,6 @@ package playlist
 
 import (
 	"bufio"
-	"compress/gzip"
 	"encoding/binary"
 	"encoding/json"
 	"io"
@@ -77,10 +76,8 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 		return err
 	}
 
-	w := gzip.NewWriter(f)
 	p.sem.RLock()
 	defer func() {
-		w.Close()
 		if err != nil {
 			os.Remove(tmp)
 		}
@@ -88,13 +85,13 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 		p.sem.RUnlock()
 	}()
 
-	enc := json.NewEncoder(w)
+	enc := json.NewEncoder(f)
 	i := make([]byte, 5)
 
 	binary.LittleEndian.PutUint32(i, uint32(p.i))
 	i[4] = 10
 
-	if _, err = w.Write(i); err != nil {
+	if _, err = f.Write(i); err != nil {
 		return err
 	}
 
@@ -132,13 +129,7 @@ func (p *Playlist) Load() error {
 	}
 	defer f.Close()
 
-	gr, err := gzip.NewReader(f)
-	if err != nil {
-		return err
-	}
-	defer gr.Close()
-
-	r := bufio.NewReader(gr)
+	r := bufio.NewReader(f)
 	i := make([]byte, 5)
 	if _, err = r.Read(i); err != nil {
 		return err
