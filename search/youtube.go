@@ -44,7 +44,7 @@ func (y *YoutubeResult) Title() string     { return y.title }
 func (y *YoutubeResult) PageURL() *url.URL { return y.url }
 func (y *YoutubeResult) IsPlayList() bool  { return y.url.Query().Get("list") != "" }
 
-func (y *YoutubeResult) DownloadURL() (*url.URL, error) {
+func (y *YoutubeResult) DownloadURLs() (URLs, error) {
 	if err := y.getInfo(); err != nil {
 		return nil, err
 	}
@@ -54,12 +54,16 @@ func (y *YoutubeResult) DownloadURL() (*url.URL, error) {
 		return nil, fmt.Errorf("No downloadable formats available")
 	}
 
-	u, err := y.info.i.GetDownloadURL(bestAudio[0])
-	if err != nil {
-		return nil, err
+	s := make(URLs, len(bestAudio))
+	for i := range bestAudio {
+		u, err := y.info.i.GetDownloadURL(bestAudio[i])
+		if err != nil {
+			return s, err
+		}
+		s[i] = u
 	}
 
-	return u, nil
+	return s, nil
 }
 
 func (y *YoutubeResult) PlaylistResults(timeout time.Duration) ([]Result, error) {

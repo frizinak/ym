@@ -185,13 +185,19 @@ func (ym *YM) Play(
 			// }
 
 			if file == "" {
-				u, err := result.DownloadURL()
+				u, err := result.DownloadURLs()
 				if err != nil {
 					errs <- err
 					wait <- nil
 					continue
 				}
-				file = u.String()
+				du, err := u.Find(5)
+				if err != nil {
+					errs <- err
+					wait <- nil
+					continue
+				}
+				file = du.String()
 			}
 
 			params := []player.Param{player.PARAM_SILENT}

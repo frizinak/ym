@@ -107,12 +107,16 @@ func main() {
 				continue
 			}
 
-			u, err := entry.DownloadURL()
+			u, err := entry.DownloadURLs()
+			if err != nil {
+				continue
+			}
+			du, err := u.Find(10)
 			if err != nil {
 				continue
 			}
 
-			err = dls.Set(cache.NewEntry(entry.ID(), "mp4", u))
+			err = dls.Set(cache.NewEntry(entry.ID(), "mp4", du))
 			if err != nil {
 				errChan <- err
 			}

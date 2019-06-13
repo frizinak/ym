@@ -1,6 +1,8 @@
 package search
 
 import (
+	"errors"
+	"net/http"
 	"net/url"
 	"reflect"
 	"time"
@@ -42,13 +44,18 @@ type Info interface {
 	Duration() time.Duration
 }
 
+type Engine interface {
+	Search(q string, page int) ([]Result, error)
+	Page(url string) ([]Result, error)
+}
+
 type Result interface {
 	ID() string
 
 	IsPlayList() bool
 	PlaylistResults(timeout time.Duration) ([]Result, error)
 
-	DownloadURL() (*url.URL, error)
+	DownloadURLs() (URLs, error)
 	PageURL() *url.URL
 
 	Title() string
@@ -57,7 +64,23 @@ type Result interface {
 	Unmarshal(b string) error
 }
 
-type Engine interface {
-	Search(q string, page int) ([]Result, error)
-	Page(url string) ([]Result, error)
+type URLs []*url.URL
+
+func (urls URLs) Find(maxURLsToTry int) (*url.URL, error) {
+	for i, u := range urls {
+		if i == maxURLsToTry {
+			break
+		}
+
+		res, err := http.Head(u.String())
+		if res != nil && res.Body != nil {
+			res.Body.Close()
+		}
+
+		if err == nil && res.StatusCode >= 200 && res.StatusCode < 300 {
+			return u, nil
+		}
+	}
+
+	return nil, errors.New("No suitable url found")
 }
