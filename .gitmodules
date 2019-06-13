@@ -25,3 +25,6 @@
 [submodule "vendor/github.com/YouROK/go-mpv"]
 	path = vendor/github.com/YouROK/go-mpv
 	url = https://github.com/YouROK/go-mpv
+[submodule "vendor/github.com/sirupsen/logrus"]
+	path = vendor/github.com/sirupsen/logrus
+	url = https://github.com/sirupsen/logrus
