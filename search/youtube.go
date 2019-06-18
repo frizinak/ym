@@ -49,14 +49,15 @@ func (y *YoutubeResult) DownloadURLs() (URLs, error) {
 		return nil, err
 	}
 
-	bestAudio := y.info.i.Formats.Best(ytdl.FormatAudioBitrateKey)
-	if len(bestAudio) == 0 {
+	formats := y.info.i.Formats
+	if len(formats) == 0 {
 		return nil, fmt.Errorf("No downloadable formats available")
 	}
 
-	s := make(URLs, len(bestAudio))
-	for i := range bestAudio {
-		u, err := y.info.i.GetDownloadURL(bestAudio[i])
+	formats.Sort(ytdl.FormatAudioBitrateKey, true)
+	s := make(URLs, len(formats))
+	for i := range formats {
+		u, err := y.info.i.GetDownloadURL(formats[i])
 		if err != nil {
 			return s, err
 		}
