@@ -47,7 +47,7 @@ func New(file string, size int, updates chan<- struct{}) *Playlist {
 	return &Playlist{
 		file:   file,
 		list:   make([]*command.Command, 0, size),
-		d:      make(chan struct{}, 0),
+		d:      make(chan struct{}),
 		update: updates,
 	}
 }
@@ -56,7 +56,7 @@ func (p *Playlist) updated(superficial bool) {
 	if !superficial {
 		p.changed = true
 	}
-	p.update <- struct{}{}
+	go func() { p.update <- struct{}{} }()
 }
 
 func (p *Playlist) Save(onlyIfChanged bool) (err error) {
