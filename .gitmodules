@@ -1,6 +1,6 @@
 [submodule "vendor/github.com/rylio/ytdl"]
 	path = vendor/github.com/rylio/ytdl
-	url = https://github.com/rylio/ytdl
+	url = https://github.com/frizinak/ytdl
 [submodule "vendor/github.com/PuerkitoBio/goquery"]
 	path = vendor/github.com/PuerkitoBio/goquery
 	url = https://github.com/PuerkitoBio/goquery
