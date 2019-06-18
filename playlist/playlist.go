@@ -193,14 +193,21 @@ func (p *Playlist) Add(cmd *command.Command) {
 	}
 
 	p.sem.Lock()
+	defer p.sem.Unlock()
 	select {
 	case p.d <- struct{}{}:
 	default:
 	}
 
+	id := cmd.Result().ID()
+	for i := range p.list {
+		if r := p.list[i].Result(); r != nil && r.ID() == id {
+			return
+		}
+	}
+
 	p.list = append(p.list, cmd)
 	p.updated(false)
-	p.sem.Unlock()
 }
 
 func (p *Playlist) Del(indexes []int) {
