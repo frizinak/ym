@@ -16,6 +16,10 @@ run: dist/ym
 install:
 	go install github.com/frizinak/ym/cmd/ym
 
+.PHONY: complete
+complete:
+	go build -i -buildmode=default -tags '$(TAGS)' -o /dev/null ./cmd/ym/*.go
+
 cross: $(CROSS)
 
 $(CROSS): $(SRC)
