@@ -4,7 +4,7 @@
 
 ## Requirements
 
-- Playing audio: one of: libmpv, mplayer or ffplay
+- Playing audio: libmpv. (possible to manually compile without libmpv but with mplayer or ffplay binaries)
 - Extracting audio (optional, to save diskspace): ffmpeg or mencoder
 
 ## Search
