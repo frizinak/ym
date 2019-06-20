@@ -1,13 +1,13 @@
-WIP
+# Simple youtube music player
 
 `go get github.com/frizinak/ym/cmd/ym`
 
-# Requirements [wip]
+## Requirements
 
-- Playing audio: libmpv / mplayer
-- Extracting audio (caching): none > ffmpeg > mencoder
+- Playing audio: one of: libmpv, mplayer or ffplay
+- Extracting audio (optional, to save diskspace): ffmpeg or mencoder
 
-# Search
+## Search
 
 `> kendrick`
 
@@ -18,12 +18,12 @@ WIP
  ...
 ```
 
-# Pick some
+## Pick some
 
 `> 1,2`
 
 
-# Other commands:
+## Other commands:
 
 - `:list`: view queue
 - `:clear`: clear queue
@@ -35,6 +35,8 @@ WIP
 - `.` or space: pause
 - `<` or left arrow key: previous song
 - `>` or right arrow key: next song
+- `[` seek forward
+- `]` seek backward
 
 - `C-q`, `C-c`, `:q`, `:exit`: quit
 
