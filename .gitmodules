@@ -28,3 +28,6 @@
 [submodule "vendor/github.com/sirupsen/logrus"]
 	path = vendor/github.com/sirupsen/logrus
 	url = https://github.com/sirupsen/logrus
+[submodule "vendor/github.com/konsorten/go-windows-terminal-sequences"]
+	path = vendor/github.com/konsorten/go-windows-terminal-sequences
+	url = https://github.com/konsorten/go-windows-terminal-sequences
