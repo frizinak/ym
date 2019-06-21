@@ -248,6 +248,36 @@ func printInfo(c <-chan search.Info) {
 	}
 }
 
+func printHelp(version, player, encoder string, c <-chan struct{}) {
+	help := command.Help()
+	all := make([]string, len(help)+2)
+	all[0] = fmt.Sprintf("Version: %s [player: %s, encoder: %s]", version, player, encoder)
+	for i := range help {
+		all[i+2] = help[i]
+	}
+	amount := len(all) + 1
+
+	for range c {
+		_, h := termSize()
+		h -= 4
+		max := amount
+		if h < max {
+			max = h
+		}
+
+		fmt.Printf("\033[2;0f\033[K")
+		for i := range all[:max-1] {
+			fmt.Printf(
+				"\033[%d;0f\033[K %s\n",
+				i+3,
+				all[i],
+			)
+		}
+
+		clearAndPrompt(max, h+1)
+	}
+}
+
 func clearAndPrompt(from, til int) {
 	for i := from; i < til-1; i++ {
 		fmt.Printf(

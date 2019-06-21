@@ -24,7 +24,10 @@ const (
 	VIEW_PLAYLIST = iota
 	VIEW_SEARCH
 	VIEW_INFO
+	VIEW_HELP
 )
+
+var version = "unknown"
 
 func getPlaylist(cacheDir string, ch chan struct{}) (*playlist.Playlist, error) {
 	var e bool
@@ -194,6 +197,9 @@ func main() {
 	playlistTriggerChan := make(chan struct{}, 0)
 	go printPlaylist(pl, playlistTriggerChan)
 
+	helpTriggerChan := make(chan struct{}, 0)
+	go printHelp(version, p.Name(), e.Name(), helpTriggerChan)
+
 	view := VIEW_PLAYLIST
 	go func() {
 		for {
@@ -235,6 +241,9 @@ func main() {
 
 			infoChan <- i
 			titleChan <- &status{msg: "Info:" + info.Title()}
+		case VIEW_HELP:
+			helpTriggerChan <- struct{}{}
+			titleChan <- &status{msg: "Help"}
 		}
 
 		//if len(cmds) == 0 {
@@ -275,6 +284,9 @@ func main() {
 			continue
 		case cmd.Forward():
 			history.Forward()
+			continue
+		case cmd.Help():
+			view = VIEW_HELP
 			continue
 		}
 

@@ -2,9 +2,13 @@
 
 `go get github.com/frizinak/ym/cmd/ym`
 
+or
+
+`go get -tags nolibmpv github.com/frizinak/ym/cmd/ym`
+
 ## Requirements
 
-- Playing audio: libmpv. (possible to manually compile without libmpv but with mplayer or ffplay binaries)
+- Playing audio: libmpv. (or with `-tags nolibmpv`: mplayer or ffplay binaries)
 - Extracting audio (optional, to save diskspace): ffmpeg or mencoder
 
 ## Search
@@ -25,21 +29,7 @@
 
 ## Other commands:
 
-- `:list`: view queue
-- `:clear`: clear queue
-- `:mov <i> <j>`: move item at index i to index j
-- `:del <i>`: remove item at index i from the queue
-- `:<i>`: show info about item at index i
-- `C-d`: scroll down
-- `C-u`: scroll up
-- `.` or space: pause
-- `<` or left arrow key: previous song
-- `>` or right arrow key: next song
-- `[` seek forward
-- `]` seek backward
-
-- `C-q`, `C-c`, `:q`, `:exit`: quit
-
+Use `:help`
 
 # Thx
 

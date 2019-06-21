@@ -15,6 +15,10 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 	return nil, nil, errors.New("Not supported")
 }
 
+func (m *LibMPV) Name() string {
+	return "?"
+}
+
 func (m *LibMPV) Supported() bool {
 	return false
 }

@@ -27,6 +27,10 @@ func NewLibMPV(volume chan<- int, seek chan<- float64) Player {
 	}
 }
 
+func (m *LibMPV) Name() string {
+	return "libmpv"
+}
+
 func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error) {
 	commands := make(chan Command, 0)
 	done := make(chan struct{}, 0)

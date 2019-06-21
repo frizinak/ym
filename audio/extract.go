@@ -7,6 +7,7 @@ import (
 )
 
 type Extractor interface {
+	Name() string
 	Extract(video io.Reader, audio io.Writer) error
 	Transcode(video io.Reader, audio io.Writer) error
 	Supported() bool
@@ -27,6 +28,10 @@ type GenericExtractor struct {
 	cmd  string
 	args []string
 	ext  string
+}
+
+func (m *GenericExtractor) Name() string {
+	return m.cmd
 }
 
 func (m *GenericExtractor) Supported() bool {

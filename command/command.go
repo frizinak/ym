@@ -1,11 +1,48 @@
 package command
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/frizinak/ym/search"
 )
+
+func Help() []string {
+	return []string{
+		"GENERAL",
+		"",
+		"type a search query, press enter and switch to search view",
+		"",
+		fmt.Sprintf("%-28s clear prompt", "<C-c>"),
+		fmt.Sprintf("%-28s open queue", ":list, :queue, :playlist"),
+		fmt.Sprintf("%-28s quit", ":exit, :quit, :q, <C-q>"),
+		"",
+		"SEARCH",
+		"",
+		fmt.Sprintf("%-20s information about item at <index>", ":<index>"),
+		fmt.Sprintf("%-20s add item at <index> to queue", "<index>"),
+		fmt.Sprintf("%-20s add items at <n>,<m>,... to queue", "<n>,<m>,..."),
+		fmt.Sprintf("%-20s add items in range <n>-<m> to queue", "<n>-<m>"),
+		"",
+		"QUEUE",
+		"",
+		"type a / followed by a query to scroll to item in the queue",
+		"",
+		fmt.Sprintf("%-20s next song", ">, right arrow"),
+		fmt.Sprintf("%-20s previous song", "<, left arrow"),
+		fmt.Sprintf("%-20s seek forward", "]"),
+		fmt.Sprintf("%-20s seek backward", "["),
+		fmt.Sprintf("%-20s pause / play", "., space"),
+		fmt.Sprintf("%-20s information about item at <index>", ":<index>"),
+		fmt.Sprintf("%-20s move item at <from> in queue to <to>", ":move <from> <to>"),
+		fmt.Sprintf("%-20s delete item from queue at <index>", ":delete <index>"),
+		fmt.Sprintf("%-20s scroll up (single item)", "<C-k>"),
+		fmt.Sprintf("%-20s scroll down (single item)", "<C-j>"),
+		fmt.Sprintf("%-20s scroll up (half page)", "<C-u>"),
+		fmt.Sprintf("%-20s scroll down (half page)", "<C-d>"),
+	}
+}
 
 type Command struct {
 	buf    []rune
@@ -191,6 +228,11 @@ func (c *Command) Forward() bool {
 func (c *Command) Exit() bool {
 	str := c.String()
 	return str == ":exit" || str == ":q" || str == ":quit"
+}
+
+func (c *Command) Help() bool {
+	str := c.String()
+	return str == ":h" || str == ":help"
 }
 
 func (c *Command) Choices() []int {

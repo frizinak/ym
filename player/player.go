@@ -25,6 +25,7 @@ type Command int
 type Param string
 
 type Player interface {
+	Name() string
 	Spawn(file string, params []Param) (chan Command, func(), error)
 	Supported() bool
 }
@@ -44,6 +45,10 @@ type GenericPlayer struct {
 	args       []string
 	paramMap   map[Param][]string
 	commandMap map[Command][]byte
+}
+
+func (m *GenericPlayer) Name() string {
+	return m.cmd
 }
 
 func (m *GenericPlayer) Supported() bool {
