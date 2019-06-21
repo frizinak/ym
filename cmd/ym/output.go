@@ -95,7 +95,7 @@ func printStatus(
 			fmt.Sprintf(
 				"\033[0;0f\033[K\033[1;41m%s%%%ds\033[0m\n\033[u",
 				left,
-				w-lw,
+				w-lw-1,
 			),
 			right,
 		)
