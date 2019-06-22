@@ -9,8 +9,10 @@ dist/ym-native: $(SRC)
 
 dist/ym-%: $(SRC)
 	@- mkdir dist 2>/dev/null
-	gox $(BUILD_FLAGS) -tags 'nolibmpv' -osarch="$*/amd64" -output="$@" ./cmd/ym/
-	if [ -f "$@.exe" ]; then mv "$@.exe" "$@"; fi
+	gox $(BUILD_FLAGS) \
+		-tags 'nolibmpv' \
+		-osarch="$(shell echo "$*" | cut -d'.' -f1)/amd64" \
+		-output="$(shell echo "$@" | cut -d'.' -f1)" ./cmd/ym/
 
 .PHONY: release
 release: | reset cross
@@ -33,7 +35,7 @@ complete:
 	go build -i -buildmode=default -tags '$(TAGS)' -o /dev/null ./cmd/ym/*.go
 
 .PHONY: cross
-cross: dist/ym-windows dist/ym-linux dist/ym-darwin
+cross: dist/ym-windows.exe dist/ym-linux dist/ym-darwin
 
 .PHONY: reset
 reset:
