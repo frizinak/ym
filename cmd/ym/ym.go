@@ -55,10 +55,6 @@ func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	if err := initTerm(); err != nil {
-		panic(err)
-	}
-
 	quit := make(chan struct{}, 0)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, os.Kill)
@@ -149,6 +145,11 @@ func main() {
 	// ignore error
 	go ym.Listen()
 	titleChan := make(chan *status, 100)
+
+	if err := initTerm(); err != nil {
+		panic(err)
+	}
+
 	go func() {
 		for range signals {
 			titleChan <- &status{msg: "Saving playlist and quitting"}
