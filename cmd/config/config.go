@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	CacheDir  string
-	Playlist  string
-	Downloads string
+	CacheDir   string
+	Playlist   string
+	Downloads  string
+	Preflights int = 10
 )
 
 func init() {

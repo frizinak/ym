@@ -78,6 +78,10 @@ func (c *Cache) Get(id string) *Cached {
 }
 
 func (c *Cache) Set(e *Entry) error {
+	return c.SetProgress(e, nil)
+}
+
+func (c *Cache) SetProgress(e *Entry, progress func(written, total int64)) error {
 	if c == nil {
 		return errors.New("No cache initialized")
 	}
@@ -96,7 +100,7 @@ func (c *Cache) Set(e *Entry) error {
 		hashFn(id, false)+"."+strconv.FormatInt(time.Now().UnixNano(), 36),
 	)
 
-	if err := download(c.t, u.String(), tmp); err != nil {
+	if err := download(c.t, u.String(), tmp, progress); err != nil {
 		return err
 	}
 
@@ -105,7 +109,7 @@ func (c *Cache) Set(e *Entry) error {
 		ext = c.t.Ext()
 	}
 
-	dest := path.Join(c.dir, hashFn(id, true)+"."+ext)
+	dest := path.Join(c.dir, c.Base(id)+"."+ext)
 	dir := path.Dir(dest)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -117,6 +121,10 @@ func (c *Cache) Set(e *Entry) error {
 	}
 
 	return nil
+}
+
+func (c *Cache) Base(id string) string {
+	return hashFn(id, true)
 }
 
 func hashFn(fn string, dirs bool) string {
@@ -154,8 +162,34 @@ func copy(dest, src string) error {
 	return err
 }
 
-func download(t Transcoder, u, dest string) error {
-	f, err := os.Create(dest)
+type progressWriter struct {
+	w       io.WriteCloser
+	size    int64
+	written int64
+	cb      func(written, total int64)
+}
+
+func (p *progressWriter) Write(d []byte) (n int, err error) {
+	n, err = p.w.Write(d)
+	p.written += int64(n)
+
+	if p.cb != nil {
+		if p.written > p.size {
+			p.size = p.written
+		}
+		p.cb(p.written, p.size)
+	}
+
+	return n, err
+}
+
+func (p *progressWriter) Close() error {
+	return p.w.Close()
+}
+
+func download(t Transcoder, u, dest string, progress func(int64, int64)) error {
+	_f, err := os.Create(dest)
+	f := &progressWriter{_f, 0, 0, progress}
 	defer f.Close()
 	if err != nil {
 		return err
@@ -165,6 +199,8 @@ func download(t Transcoder, u, dest string) error {
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
 	}
+
+	f.size = res.ContentLength
 
 	if err != nil {
 		return err
