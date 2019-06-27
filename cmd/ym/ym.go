@@ -14,7 +14,6 @@ import (
 	"github.com/frizinak/ym/cmd/config"
 	"github.com/frizinak/ym/command"
 	"github.com/frizinak/ym/history"
-	"github.com/frizinak/ym/player"
 	"github.com/frizinak/ym/playlist"
 	"github.com/frizinak/ym/search"
 	"github.com/frizinak/ym/ym"
@@ -68,21 +67,12 @@ func main() {
 
 	volumeChan := make(chan int, 0)
 	seekChan := make(chan float64, 0)
-	p, err := player.FindSupportedPlayer(
-		player.NewLibMPV(volumeChan, seekChan),
-		player.NewMPlayer(),
-		player.NewFFPlay(),
-	)
-
+	p, err := config.Player(volumeChan, seekChan)
 	if err != nil {
 		panic(err)
 	}
 
-	e, _ := audio.FindSupportedExtractor(
-		audio.NewFFMPEG(),
-		audio.NewMEncoder(),
-	)
-
+	e, _ := config.Extractor()
 	dls := getCache(config.Downloads, e)
 	playlistChan := make(chan struct{}, 1)
 	pl, err := getPlaylist(config.CacheDir, playlistChan)

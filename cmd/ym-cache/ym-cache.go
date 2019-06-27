@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/frizinak/ym/audio"
 	"github.com/frizinak/ym/cache"
 	"github.com/frizinak/ym/cmd/config"
 	"github.com/frizinak/ym/playlist"
@@ -17,11 +16,6 @@ import (
 )
 
 func handle(workerIndex int, r search.Result, dls *cache.Cache) error {
-	c := dls.Get(r.ID())
-	if c != nil {
-		return nil
-	}
-
 	us, err := r.DownloadURLs()
 	if err != nil {
 		return err
@@ -63,12 +57,12 @@ func handle(workerIndex int, r search.Result, dls *cache.Cache) error {
 }
 
 func main() {
-	e, _ := audio.FindSupportedExtractor(
-		audio.NewFFMPEG(),
-		audio.NewMEncoder(),
-	)
+	e, _ := config.Extractor()
+	dls, err := cache.New(e, config.Downloads, filepath.Join(os.TempDir(), "ym"))
+	if err != nil {
+		panic(err)
+	}
 
-	dls, _ := cache.New(e, config.Downloads, filepath.Join(os.TempDir(), "ym"))
 	pl := playlist.New(config.Playlist, 100, nil)
 	if err := pl.Load(); err != nil {
 		panic(err)
@@ -93,15 +87,13 @@ func main() {
 		for range done {
 			have++
 			fmt.Printf(
-				"\033[%d;0f\033[K %04d/%04d\n",
-				workers+3,
+				"\033[0;0f\033[K %04d/%04d\n",
 				have,
 				total,
 			)
 		}
 	}()
 
-	fmt.Printf("\033[2;J")
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func(i int) {
@@ -122,8 +114,15 @@ func main() {
 		}(i)
 	}
 
+	fmt.Printf("\033[2;J")
 	for _, e := range list {
-		work <- e.Result()
+		r := e.Result()
+		if dls.Get(r.ID()) != nil {
+			done <- struct{}{}
+			continue
+		}
+
+		work <- r
 	}
 	close(work)
 	wg.Wait()

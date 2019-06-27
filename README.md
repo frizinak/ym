@@ -31,6 +31,17 @@ or
 
 Use `:help`
 
+## Tools:
+
+**Makes sure all items are cached in ~/.cache/ym/downloads**
+
+`go get github.com/frizinak/ym/cmd/ym-cache`
+
+**Hardlinks copies in ~/.cache/ym/downloads to whatever dir you specify, with clean filenames.**
+
+`go get github.com/frizinak/ym/cmd/ym-files`
+
+
 # Thx
 
 - https://github.com/rylio/ytdl

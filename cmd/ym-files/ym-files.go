@@ -1,31 +1,39 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
-	"github.com/frizinak/ym/audio"
 	"github.com/frizinak/ym/cache"
 	"github.com/frizinak/ym/cmd/config"
 	"github.com/frizinak/ym/playlist"
+	"github.com/frizinak/ym/search"
 )
 
 func main() {
-	download := true
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "Specify a directory to hardlink cached items to.")
+		os.Exit(1)
+	}
+
+	path := os.Args[1]
+	if path == "-h" || path == "--help" {
+		fmt.Println("Hardlink all cached items to the provided directory")
+		os.Exit(0)
+	}
+
 	fn := regexp.MustCompile("[\\/:*?\"<>|\\0]+")
-	e, _ := audio.FindSupportedExtractor(
-		audio.NewFFMPEG(),
-		audio.NewMEncoder(),
-	)
+	e, _ := config.Extractor()
+	dls, err := cache.New(e, config.Downloads, filepath.Join(os.TempDir(), "ym"))
+	if err != nil {
+		panic(err)
+	}
 
-	dls, _ := cache.New(e, config.Downloads, filepath.Join(os.TempDir(), "ym"))
-
-	dest := "ym-files"
-	os.MkdirAll(dest, 0755)
-
+	os.MkdirAll(path, 0755)
 	pl := playlist.New(config.Playlist, 100, nil)
 	if err := pl.Load(); err != nil {
 		panic(err)
@@ -35,35 +43,47 @@ func main() {
 		return strings.Trim(fn.ReplaceAllString(p, "-"), "-")
 	}
 
-	for _, e := range pl.List() {
-		r := e.Result()
-		c := dls.Get(r.ID())
-		if c == nil {
-			if !download {
-				continue
-			}
+	workers := 1
+	work := make(chan search.Result, workers)
+	var wg sync.WaitGroup
 
-			u, err := r.DownloadURL()
-			if err != nil {
-				log.Println("No download url for", r.Title())
-				continue
-			}
-
-			if err := dls.Set(cache.NewEntry(r.ID(), "mp4", u)); err != nil {
-				log.Println(err)
-				continue
-			}
-
+	have := 0
+	done := make(chan struct{}, workers)
+	fin := make(chan struct{})
+	go func() {
+		for range done {
+			have++
+			fmt.Printf("\033[20D\033[K%d/%d", have, pl.Length())
 		}
+		fin <- struct{}{}
+	}()
 
-		c = dls.Get(r.ID())
-		hardlink := c.Path()
-		ext := filepath.Ext(hardlink)
-
-		symlink := filepath.Join(dest, clean(r.Title())+ext)
-		if err := os.Link(hardlink, symlink); err != nil && !os.IsExist(err) {
-			panic(err)
-		}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			for r := range work {
+				c := dls.Get(r.ID())
+				if c == nil {
+					continue
+				}
+				hardlink := c.Path()
+				symlink := filepath.Join(path, clean(r.Title())+filepath.Ext(hardlink))
+				if err := os.Link(hardlink, symlink); err != nil && !os.IsExist(err) {
+					panic(err)
+				}
+				done <- struct{}{}
+			}
+			wg.Done()
+		}()
 	}
+
+	for _, e := range pl.List() {
+		work <- e.Result()
+	}
+	close(work)
+	wg.Wait()
+	close(done)
+	<-fin
+	fmt.Println("\ndone")
 
 }
