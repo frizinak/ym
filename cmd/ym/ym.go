@@ -110,7 +110,7 @@ func main() {
 			if err != nil {
 				continue
 			}
-			du, err := u.Find(10)
+			du, err := u.Find(config.Preflights)
 			if err != nil {
 				continue
 			}
@@ -140,6 +140,7 @@ func main() {
 		p,
 		dls,
 		&net.TCPAddr{IP: net.IP{127, 0, 0, 1}, Port: 6600},
+		config.Preflights,
 	)
 
 	// ignore error

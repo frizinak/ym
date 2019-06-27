@@ -22,6 +22,8 @@ type YM struct {
 	state   string
 	current search.Result
 	addr    *net.TCPAddr
+
+	preflights int
 }
 
 func New(
@@ -30,6 +32,7 @@ func New(
 	player player.Player,
 	cache *cache.Cache,
 	sock *net.TCPAddr,
+	downloadPreflights int,
 ) *YM {
 	return &YM{
 		playlist,
@@ -39,6 +42,7 @@ func New(
 		"stop",
 		nil,
 		sock,
+		downloadPreflights,
 	}
 }
 
@@ -191,7 +195,7 @@ func (ym *YM) Play(
 					wait <- nil
 					continue
 				}
-				du, err := u.Find(5)
+				du, err := u.Find(ym.preflights)
 				if err != nil {
 					errs <- err
 					wait <- nil
