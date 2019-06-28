@@ -151,8 +151,8 @@ func (ym *YM) Play(
 ) error {
 	var commands chan player.Command
 
-	iq := make(chan *command.Command, 0)
-	wait := make(chan func(), 0)
+	iq := make(chan *command.Command)
+	wait := make(chan func())
 	go func() {
 		for {
 			iq <- ym.playlist.Read()
@@ -170,7 +170,7 @@ func (ym *YM) Play(
 		select {
 		case <-quit:
 			if commands != nil {
-				commands <- player.CMD_STOP
+				commands <- player.CmdStop
 			}
 			return nil
 		case c := <-iq:
@@ -204,11 +204,11 @@ func (ym *YM) Play(
 				file = du.String()
 			}
 
-			params := []player.Param{player.PARAM_SILENT}
+			params := []player.Param{player.ParamSilent}
 
 			// TODO
 			// if c.Cmd() != '!' {
-			params = append(params, player.PARAM_NO_VIDEO)
+			params = append(params, player.ParamNoVideo)
 			// }
 
 			var err error
@@ -226,7 +226,7 @@ func (ym *YM) Play(
 			}
 
 		case cmd := <-queue:
-			var c player.Command = player.CMD_NIL
+			var c player.Command = player.CmdNil
 			if choice := cmd.Choice(); choice > 0 {
 				ym.playlist.SetIndex(choice - 1)
 				cmd = command.New([]rune{'>'})
@@ -234,11 +234,11 @@ func (ym *YM) Play(
 
 			if cmd.Next() {
 				ym.playlist.Next(1)
-				c = player.CMD_STOP
+				c = player.CmdStop
 
 			} else if cmd.Prev() {
 				ym.playlist.Prev(1)
-				c = player.CMD_STOP
+				c = player.CmdStop
 
 			} else if from, to := cmd.Move(); from != 0 && to != 0 {
 				ym.playlist.Move(from-1, to-1)
@@ -248,7 +248,7 @@ func (ym *YM) Play(
 				for i := range ints {
 					ints[i]--
 					if ix == ints[i] {
-						c = player.CMD_STOP
+						c = player.CmdStop
 					}
 				}
 
@@ -256,7 +256,7 @@ func (ym *YM) Play(
 
 			} else if cmd.Clear() {
 				ym.playlist.Truncate()
-				c = player.CMD_STOP
+				c = player.CmdStop
 
 			} else if cmd.Pause() {
 				switch ym.state {
@@ -268,30 +268,30 @@ func (ym *YM) Play(
 					ym.state = "pause"
 				}
 
-				c = player.CMD_PAUSE
+				c = player.CmdPause
 
 			} else if y := cmd.Scroll(); y != 0 {
 				ym.playlist.Scroll(y)
 
 			} else if ud := cmd.Volume(); ud != 0 {
-				c = player.CMD_VOL_UP
+				c = player.CmdVolUp
 				if ud < 0 {
-					c = player.CMD_VOL_DOWN
+					c = player.CmdVolDown
 				}
 
 			} else if cmd.SeekBack() {
-				c = player.CMD_SEEK_BACKWARD
+				c = player.CmdSeekBackward
 			} else if cmd.SeekForward() {
-				c = player.CMD_SEEK_FORWARD
+				c = player.CmdSeekForward
 
 			} else if cmd.Rand() {
 				ym.playlist.ToggleRandom()
 			}
 
-			if c != player.CMD_NIL {
+			if c != player.CmdNil {
 				if commands != nil {
 					commands <- c
-					if c == player.CMD_STOP {
+					if c == player.CmdStop {
 						close(commands)
 						commands = nil
 					}
@@ -299,6 +299,4 @@ func (ym *YM) Play(
 			}
 		}
 	}
-
-	return nil
 }

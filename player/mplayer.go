@@ -4,15 +4,15 @@ func NewMPlayer() *GenericPlayer {
 	return &GenericPlayer{
 		cmd: "mplayer",
 		paramMap: map[Param][]string{
-			PARAM_NO_VIDEO: {"-vo", "null"},
-			PARAM_SILENT:   {"-really-quiet"},
+			ParamNoVideo: {"-vo", "null"},
+			ParamSilent:  {"-really-quiet"},
 		},
 		commandMap: map[Command][]byte{
-			CMD_PAUSE:    []byte(" "),
-			CMD_NEXT:     []byte("\033[C"),
-			CMD_PREV:     []byte("\033[D"),
-			CMD_VOL_UP:   []byte("0"),
-			CMD_VOL_DOWN: []byte("9"),
+			CmdPause:   []byte(" "),
+			CmdNext:    []byte("\033[C"),
+			CmdPrev:    []byte("\033[D"),
+			CmdVolUp:   []byte("0"),
+			CmdVolDown: []byte("9"),
 		},
 	}
 }

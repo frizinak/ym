@@ -123,7 +123,7 @@ func (c *Command) Info() int {
 	return 0
 }
 
-func (c *Command) Url() string {
+func (c *Command) URL() string {
 	if len(c.buf) > 1 && c.buf[0] == '!' {
 		return string(c.buf[1:])
 	}

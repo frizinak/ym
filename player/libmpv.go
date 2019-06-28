@@ -32,8 +32,8 @@ func (m *LibMPV) Name() string {
 }
 
 func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error) {
-	commands := make(chan Command, 0)
-	done := make(chan struct{}, 0)
+	commands := make(chan Command)
+	done := make(chan struct{})
 
 	p := mpv.Create()
 	m.adjustVolume(p, 0)
@@ -55,9 +55,9 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 
 	for _, par := range params {
 		switch par {
-		case PARAM_NO_VIDEO:
+		case ParamNoVideo:
 			p.SetOption("vid", mpv.FORMAT_FLAG, false)
-		case PARAM_SILENT:
+		case ParamSilent:
 			p.SetOption("really-quiet", mpv.FORMAT_FLAG, true)
 		}
 	}
@@ -83,23 +83,23 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 				}
 
 				switch command {
-				case CMD_PAUSE:
+				case CmdPause:
 					paused = !paused
 					p.SetPropertyString("pause", m.cmdPause[paused])
 
-				case CMD_STOP:
+				case CmdStop:
 					p.Command([]string{"quit"})
 
-				case CMD_VOL_DOWN:
+				case CmdVolDown:
 					m.adjustVolume(p, -5)
 
-				case CMD_VOL_UP:
+				case CmdVolUp:
 					m.adjustVolume(p, 5)
 
-				case CMD_SEEK_BACKWARD:
+				case CmdSeekBackward:
 					m.seek(p, -time.Second*10)
 
-				case CMD_SEEK_FORWARD:
+				case CmdSeekForward:
 					m.seek(p, time.Second*10)
 				}
 			case <-time.After(time.Millisecond * 200):

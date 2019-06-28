@@ -62,7 +62,7 @@ func printStatus(
 ) {
 	var volume int
 	var lstatus string
-	lstatusChan := make(chan string, 0)
+	lstatusChan := make(chan string)
 	var result search.Result
 
 	print := func() {

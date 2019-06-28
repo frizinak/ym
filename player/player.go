@@ -6,18 +6,18 @@ import (
 )
 
 const (
-	CMD_NIL Command = iota
-	CMD_PAUSE
-	CMD_STOP
-	CMD_NEXT
-	CMD_PREV
-	CMD_VOL_UP
-	CMD_VOL_DOWN
-	CMD_SEEK_FORWARD
-	CMD_SEEK_BACKWARD
+	CmdNil Command = iota
+	CmdPause
+	CmdStop
+	CmdNext
+	CmdPrev
+	CmdVolUp
+	CmdVolDown
+	CmdSeekForward
+	CmdSeekBackward
 
-	PARAM_NO_VIDEO Param = "no-video"
-	PARAM_SILENT   Param = "silent"
+	ParamNoVideo Param = "no-video"
+	ParamSilent  Param = "silent"
 )
 
 type Command int
@@ -81,7 +81,7 @@ func (m *GenericPlayer) Spawn(file string, params []Param) (
 		return nil, nil, err
 	}
 
-	commands := make(chan Command, 0)
+	commands := make(chan Command)
 	wait := func() {
 		cmd.Wait()
 	}
@@ -94,7 +94,7 @@ func (m *GenericPlayer) Spawn(file string, params []Param) (
 			}
 
 			switch command {
-			case CMD_STOP:
+			case CmdStop:
 				break outer
 			}
 		}

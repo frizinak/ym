@@ -54,19 +54,19 @@ func getCache(cacheDir string, e audio.Extractor) *cache.Cache {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	quit := make(chan struct{}, 0)
+	quit := make(chan struct{})
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, os.Kill)
+	signal.Notify(signals, os.Interrupt)
 
-	errChan := make(chan error, 0)
+	errChan := make(chan error)
 
 	yt, err := search.NewYoutube(time.Second * 5)
 	if err != nil {
 		panic(err)
 	}
 
-	volumeChan := make(chan int, 0)
-	seekChan := make(chan float64, 0)
+	volumeChan := make(chan int)
+	seekChan := make(chan float64)
 	p, err := config.Player(volumeChan, seekChan)
 	if err != nil {
 		panic(err)
@@ -155,9 +155,9 @@ func main() {
 	history := history.New(20)
 
 	playChan := make(chan *command.Command, 100)
-	currentChan := make(chan search.Result, 0)
+	currentChan := make(chan search.Result)
 
-	statusChan := make(chan string, 0)
+	statusChan := make(chan string)
 	go func() {
 		err := ym.Play(
 			playChan,
@@ -180,26 +180,23 @@ func main() {
 	go printStatus(titleChan, currentChan, volumeChan)
 	go printSeeker(seekChan, statusChan)
 
-	resultsChan := make(chan []search.Result, 0)
+	resultsChan := make(chan []search.Result)
 	go printResults(resultsChan)
 
-	infoChan := make(chan search.Info, 0)
+	infoChan := make(chan search.Info)
 	go printInfo(infoChan)
 
-	playlistTriggerChan := make(chan struct{}, 0)
+	playlistTriggerChan := make(chan struct{})
 	go printPlaylist(pl, playlistTriggerChan)
 
-	helpTriggerChan := make(chan struct{}, 0)
+	helpTriggerChan := make(chan struct{})
 	go printHelp(version, p.Name(), e.Name(), helpTriggerChan)
 
 	view := VIEW_PLAYLIST
 	go func() {
-		for {
-			select {
-			case <-playlistChan:
-				if view == VIEW_PLAYLIST {
-					playlistTriggerChan <- struct{}{}
-				}
+		for range playlistChan {
+			if view == VIEW_PLAYLIST {
+				playlistTriggerChan <- struct{}{}
 			}
 		}
 	}()
@@ -298,7 +295,7 @@ func main() {
 			}
 			history.Write(qry, r)
 			continue
-		} else if u := cmd.Url(); u != "" {
+		} else if u := cmd.URL(); u != "" {
 			view = VIEW_SEARCH
 			titleChan <- &status{msg: "Page: " + u}
 			r, err := ym.ExecPage(u)
