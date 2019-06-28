@@ -34,8 +34,8 @@ dist/release/%: cross
 	   cp "dist/$$src" "$@";
 
 .PHONY: run
-run: dist/ym-native
-	./dist/ym-native
+run: dist/ym.native
+	./dist/ym.native
 
 .PHONY: install
 install:
