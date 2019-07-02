@@ -56,6 +56,14 @@ release: $(RELEASE)
 		$(MAKE) all; \
 		for i in dist/ym*.native; do cp "$$i" "dist/release/linux/$$(basename $$i | cut -d '.' -f1)" ; done; \
 	fi
+	@cd dist/release && for i in ./*; do \
+		if [ ! -d "$$i" ]; then continue; fi; \
+		if echo "$$i" | grep 'windows' >/dev/null; then \
+			zip -r "$$i" "$$i"; \
+			continue; \
+		fi; \
+		tar -zcf "$$i.tar.gz" "$$(basename $$i)"; \
+	done
 	@echo -e "\033[1;30;42m Release: $(VERSION) \033[0m"
 
 
