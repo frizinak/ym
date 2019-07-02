@@ -2,9 +2,7 @@ package playlist
 
 import (
 	"bufio"
-	"encoding/binary"
 	"encoding/json"
-	"io"
 	"math/rand"
 	"os"
 	"sort"
@@ -86,12 +84,10 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 	}()
 
 	enc := json.NewEncoder(f)
-	i := make([]byte, 5)
+	// i := make([]byte, 5)
+	i := strconv.Itoa(p.i) + "\n"
 
-	binary.LittleEndian.PutUint32(i, uint32(p.i))
-	i[4] = 10
-
-	if _, err = f.Write(i); err != nil {
+	if _, err = f.WriteString(i); err != nil {
 		return err
 	}
 
@@ -129,32 +125,27 @@ func (p *Playlist) Load() error {
 	}
 	defer f.Close()
 
-	r := bufio.NewReader(f)
-	i := make([]byte, 5)
-	if _, err = r.Read(i); err != nil {
-		return err
+	var nonCritErr error
+	scan := bufio.NewScanner(f)
+	scan.Scan()
+	index, err := strconv.Atoi(strings.TrimSpace(scan.Text()))
+	if err != nil {
+		nonCritErr = err
+		index = 0
 	}
 
-	index := int(binary.LittleEndian.Uint32(i[:4]))
-
 	raw := make([]*storable, 0)
-
-	var nonCritErr error
-	for {
-		b, _, err := bufio.NewReaderSize(r, 4096).ReadLine()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
+	for scan.Scan() {
 		item := &storable{}
-		if err := json.Unmarshal(b, item); err != nil {
+		if err := json.Unmarshal(scan.Bytes(), item); err != nil {
 			nonCritErr = err
 			continue
 		}
 		raw = append(raw, item)
+	}
+
+	if err := scan.Err(); err != nil {
+		return err
 	}
 
 	list := make([]*command.Command, 0, len(raw))
