@@ -1,4 +1,4 @@
-SRC := $(shell find . -type f -name '*.go')
+SRC := $(shell find . -type f -name '*.go'; echo go.mod)
 TAGS := $(shell pkg-config mpv || echo nolibmpv)
 VERSION := $(shell git describe)
 BUILD_FLAGS := -ldflags "-X main.version=$(VERSION)" -tags '$(TAGS)'
