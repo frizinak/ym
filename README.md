@@ -1,5 +1,9 @@
 # Simple youtube music player
 
+Download a [release](https://github.com/frizinak/ym/releases)
+
+or
+
 `go get github.com/frizinak/ym/cmd/ym`
 
 or
