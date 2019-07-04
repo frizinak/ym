@@ -50,13 +50,6 @@ func New(file string, size int, updates chan<- struct{}) *Playlist {
 	}
 }
 
-func (p *Playlist) updated(superficial bool) {
-	if !superficial {
-		p.changed = true
-	}
-	go func() { p.update <- struct{}{} }()
-}
-
 func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 	if onlyIfChanged {
 		p.sem.RLock()
@@ -116,7 +109,6 @@ func (p *Playlist) Save(onlyIfChanged bool) (err error) {
 }
 
 func (p *Playlist) Load() error {
-
 	p.sem.Lock()
 	defer p.sem.Unlock()
 	f, err := os.Open(p.file)
@@ -303,7 +295,7 @@ func (p *Playlist) ResetScroll() {
 func (p *Playlist) Surrounding(amount int) (firstIndex int, activeIndex int, r []search.Result) {
 	p.sem.RLock()
 	r = make([]search.Result, 0, amount)
-	activeIndex = p.Index()
+	activeIndex = p.index()
 	if activeIndex < 0 {
 		activeIndex = 0
 	}
@@ -427,11 +419,9 @@ func (p *Playlist) Prev(i int) {
 
 func (p *Playlist) Index() int {
 	p.sem.RLock()
-	defer p.sem.RUnlock()
-	if p.rand {
-		return p.last - 1
-	}
-	return p.i - 1
+	i := p.index()
+	p.sem.RUnlock()
+	return i
 }
 
 func (p *Playlist) SetIndex(i int) {
@@ -532,4 +522,18 @@ func (p *Playlist) Move(from, to int) {
 		p.updated(false)
 	}
 	p.sem.Unlock()
+}
+
+func (p *Playlist) index() int {
+	if p.rand {
+		return p.last - 1
+	}
+	return p.i - 1
+}
+
+func (p *Playlist) updated(superficial bool) {
+	if !superficial {
+		p.changed = true
+	}
+	p.update <- struct{}{}
 }
