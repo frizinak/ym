@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	VIEW_PLAYLIST = iota
-	VIEW_SEARCH
-	VIEW_INFO
-	VIEW_HELP
+	ViewPlaylist = iota
+	ViewSearch
+	ViewInfo
+	ViewHelp
 )
 
 var version = "unknown"
@@ -192,10 +192,10 @@ func main() {
 	helpTriggerChan := make(chan struct{})
 	go printHelp(version, p.Name(), e.Name(), helpTriggerChan)
 
-	view := VIEW_PLAYLIST
+	view := ViewPlaylist
 	go func() {
 		for range playlistChan {
-			if view == VIEW_PLAYLIST {
+			if view == ViewPlaylist {
 				playlistTriggerChan <- struct{}{}
 			}
 		}
@@ -208,29 +208,29 @@ func main() {
 
 	for {
 		switch view {
-		case VIEW_PLAYLIST:
+		case ViewPlaylist:
 			titleChan <- &status{msg: "Playlist"}
 			playlistTriggerChan <- struct{}{}
-		case VIEW_SEARCH:
+		case ViewSearch:
 			title, r := history.Current()
 			titleChan <- &status{msg: title}
 			resultsChan <- r
-		case VIEW_INFO:
+		case ViewInfo:
 			if info == nil {
-				view = VIEW_SEARCH
+				view = ViewSearch
 				continue
 			}
 
 			i, err := info.Info()
 			if err != nil {
 				errChan <- err
-				view = VIEW_SEARCH
+				view = ViewSearch
 				continue
 			}
 
 			infoChan <- i
 			titleChan <- &status{msg: "Info:" + info.Title()}
-		case VIEW_HELP:
+		case ViewHelp:
 			helpTriggerChan <- struct{}{}
 			titleChan <- &status{msg: "Help"}
 		}
@@ -254,19 +254,19 @@ func main() {
 		//cmd = cmds[0]
 		//cmds = cmds[1:]
 
-		if view != VIEW_SEARCH && view != VIEW_PLAYLIST {
-			view = VIEW_SEARCH
+		if view != ViewSearch && view != ViewPlaylist {
+			view = ViewSearch
 			continue
 		}
 
 		switch {
 		case cmd.Playlist():
-			view = VIEW_PLAYLIST
+			view = ViewPlaylist
 			pl.ResetScroll()
 			continue
 		case cmd.Back():
-			if view == VIEW_PLAYLIST {
-				view = VIEW_SEARCH
+			if view == ViewPlaylist {
+				view = ViewSearch
 				continue
 			}
 			history.Back()
@@ -275,18 +275,18 @@ func main() {
 			history.Forward()
 			continue
 		case cmd.Help():
-			view = VIEW_HELP
+			view = ViewHelp
 			continue
 		}
 
 		if cmd.IsText() {
 			qry := cmd.String()
-			if qry == "" && view == VIEW_PLAYLIST {
-				view = VIEW_SEARCH
+			if qry == "" && view == ViewPlaylist {
+				view = ViewSearch
 				continue
 			}
 
-			view = VIEW_SEARCH
+			view = ViewSearch
 			titleChan <- &status{msg: "Searching: " + qry}
 			r, err := ym.ExecSearch(qry, 60)
 			if err != nil {
@@ -296,7 +296,7 @@ func main() {
 			history.Write(qry, r)
 			continue
 		} else if u := cmd.URL(); u != "" {
-			view = VIEW_SEARCH
+			view = ViewSearch
 			titleChan <- &status{msg: "Page: " + u}
 			r, err := ym.ExecPage(u)
 			if err != nil {
@@ -310,11 +310,11 @@ func main() {
 		_, cur := history.Current()
 
 		switch view {
-		case VIEW_SEARCH:
+		case ViewSearch:
 			if i := cmd.Info(); i != 0 && i <= len(cur) {
 				r := cur[i-1]
 				info = r
-				view = VIEW_INFO
+				view = ViewInfo
 				continue
 			}
 
@@ -340,14 +340,14 @@ func main() {
 				pl.Add(cmd.Clone().SetResult(r))
 			}
 			continue
-		case VIEW_PLAYLIST:
+		case ViewPlaylist:
 			if i := cmd.Info(); i > 0 && i <= pl.Length() {
 				r := pl.At(i - 1)
 				if r == nil {
 					continue
 				}
 				info = r.Result()
-				view = VIEW_INFO
+				view = ViewInfo
 				continue
 			}
 
@@ -363,7 +363,7 @@ func main() {
 			}
 
 		default:
-			view = VIEW_SEARCH
+			view = ViewSearch
 			continue
 		}
 

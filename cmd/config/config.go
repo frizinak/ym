@@ -13,7 +13,7 @@ var (
 	CacheDir   string
 	Playlist   string
 	Downloads  string
-	Preflights int = 10
+	Preflights = 10
 )
 
 func init() {
