@@ -51,7 +51,7 @@ complete:
 cross: $(CROSS)
 
 .PHONY: release
-release: $(RELEASE)
+release: reset-release $(RELEASE)
 	@if ! echo "$(TAGS)" | grep nolibmpv > /dev/null; then \
 		$(MAKE) all; \
 		for i in dist/ym*.native; do cp "$$i" "dist/release/linux/$$(basename $$i | cut -d '.' -f1)" ; done; \
@@ -70,4 +70,8 @@ release: $(RELEASE)
 .PHONY: reset
 reset:
 	-rm -rf dist
+
+.PHONY: reset-release
+reset-release:
+	-rm -rf dist/release
 
