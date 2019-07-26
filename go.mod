@@ -2,7 +2,7 @@ module github.com/frizinak/ym
 
 go 1.12
 
-replace github.com/rylio/ytdl v0.5.1 => github.com/frizinak/ytdl v0.5.2-0.20190704154251-a91ed2dc6e6d
+replace github.com/rylio/ytdl v0.5.1 => github.com/frizinak/ytdl v0.5.2-0.20190726124645-a41cce005bdd
 
 require (
 	github.com/YouROK/go-mpv v0.0.0-20160721123233-ecdfd901e332

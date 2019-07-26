@@ -6,6 +6,8 @@ github.com/andybalholm/cascadia v1.0.0 h1:hOCXnnZ5A+3eVDX8pvgl4kofXv2ELss0bKcqRy
 github.com/andybalholm/cascadia v1.0.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
 github.com/frizinak/ytdl v0.5.2-0.20190704154251-a91ed2dc6e6d h1:u3UU3KeOCs75tR10E4wnZ7D5BXs+RAfkUCwUn69xKm8=
 github.com/frizinak/ytdl v0.5.2-0.20190704154251-a91ed2dc6e6d/go.mod h1:8097FpUrBTgtad2LbnV90Hx9Q8zIFs4KLG3J+PsuxlY=
+github.com/frizinak/ytdl v0.5.2-0.20190726124645-a41cce005bdd h1:O49DkO9lbImYHhaZHVBLgFciK7a45D6Cup7BmzzkWxk=
+github.com/frizinak/ytdl v0.5.2-0.20190726124645-a41cce005bdd/go.mod h1:8097FpUrBTgtad2LbnV90Hx9Q8zIFs4KLG3J+PsuxlY=
 github.com/mattn/go-runewidth v0.0.4 h1:2BvfKmzob6Bmd4YsL0zygOqfdFnK7GR4QL06Do4/p7Y=
 github.com/mattn/go-runewidth v0.0.4/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
 github.com/nsf/termbox-go v0.0.0-20190624072549-eeb6cd0a1762 h1:44Lv0bNi88GweB54TCjB/lEJgp+2Ze5WFpwNu0nh0ag=
