@@ -168,6 +168,7 @@ func main() {
 			quit,
 		)
 		if err != nil {
+			closeTerm()
 			panic(err)
 		}
 	}()
@@ -239,6 +240,7 @@ func main() {
 		//if len(cmds) == 0 {
 		//if cmd == nil {
 		if cmd, err = prompt(cmd); err != nil {
+			closeTerm()
 			panic(err)
 		}
 		//}
