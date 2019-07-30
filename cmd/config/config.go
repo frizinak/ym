@@ -31,7 +31,7 @@ func Extractor() (audio.Extractor, error) {
 	)
 }
 
-func Player(volumeChan chan int, seekChan chan float64) (player.Player, error) {
+func Player(volumeChan chan int, seekChan chan *player.Pos) (player.Player, error) {
 	return player.FindSupportedPlayer(
 		player.NewLibMPV(volumeChan, seekChan),
 		player.NewMPlayer(),

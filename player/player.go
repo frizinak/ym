@@ -3,6 +3,7 @@ package player
 import (
 	"errors"
 	"os/exec"
+	"time"
 )
 
 const (
@@ -23,6 +24,26 @@ const (
 type Command int
 
 type Param string
+
+type Pos struct {
+	Cur time.Duration
+	Dur time.Duration
+}
+
+func (p *Pos) Pct() float64 {
+	pct := 0.0
+
+	if p == nil || p.Dur < 1 {
+		return pct
+	}
+
+	pct = float64(p.Cur) / float64(p.Dur)
+	if pct > 1.0 {
+		return 1.0
+	}
+
+	return pct
+}
 
 type Player interface {
 	Name() string

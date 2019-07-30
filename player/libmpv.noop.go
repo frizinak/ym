@@ -7,7 +7,7 @@ import "errors"
 type LibMPV struct {
 }
 
-func NewLibMPV(volume chan<- int, seek chan<- float64) Player {
+func NewLibMPV(volume chan<- int, seek chan<- *Pos) Player {
 	return &LibMPV{}
 }
 

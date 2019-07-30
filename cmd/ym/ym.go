@@ -14,6 +14,7 @@ import (
 	"github.com/frizinak/ym/cmd/config"
 	"github.com/frizinak/ym/command"
 	"github.com/frizinak/ym/history"
+	"github.com/frizinak/ym/player"
 	"github.com/frizinak/ym/playlist"
 	"github.com/frizinak/ym/search"
 	"github.com/frizinak/ym/ym"
@@ -66,7 +67,7 @@ func main() {
 	}
 
 	volumeChan := make(chan int)
-	seekChan := make(chan float64)
+	seekChan := make(chan *player.Pos)
 	p, err := config.Player(volumeChan, seekChan)
 	if err != nil {
 		panic(err)

@@ -12,10 +12,23 @@ type LibMPV struct {
 	cmdPause   map[bool]string
 	volume     float64
 	volumeChan chan<- int
-	seekChan   chan<- float64
+	seekChan   chan<- *Pos
+	pos        pos
 }
 
-func NewLibMPV(volume chan<- int, seek chan<- float64) Player {
+type pos struct {
+	timePos float64
+	timeEnd float64
+}
+
+func (p pos) Pos() *Pos {
+	return &Pos{
+		time.Duration(p.timePos * float64(time.Second)),
+		time.Duration(p.timeEnd * float64(time.Second)),
+	}
+}
+
+func NewLibMPV(volume chan<- int, seek chan<- *Pos) Player {
 	return &LibMPV{
 		map[bool]string{
 			true:  "yes",
@@ -24,6 +37,7 @@ func NewLibMPV(volume chan<- int, seek chan<- float64) Player {
 		100,
 		volume,
 		seek,
+		pos{0, 0},
 	}
 }
 
@@ -69,6 +83,10 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 	go func() {
 		paused := false
 		closed := false
+		quickTO := time.Millisecond * 200
+		slowTO := time.Second * 2
+		quick := time.After(slowTO)
+		slow := time.After(quickTO)
 		for {
 			select {
 			case <-done:
@@ -102,12 +120,20 @@ func (m *LibMPV) Spawn(file string, params []Param) (chan Command, func(), error
 				case CmdSeekForward:
 					m.seek(p, time.Second*10)
 				}
-			case <-time.After(time.Millisecond * 200):
+			case <-quick:
+				quick = time.After(quickTO)
 				if closed {
 					continue
 				}
 
-				m.seekPct(p, 0)
+				m.positionQuick(p)
+			case <-slow:
+				slow = time.After(slowTO)
+				if closed {
+					continue
+				}
+
+				m.position(p)
 			}
 		}
 	}()
@@ -140,12 +166,28 @@ func (m *LibMPV) seek(p *mpv.Mpv, adjustment time.Duration) error {
 		p.SetProperty("time-pos", mpv.FORMAT_INT64, cur)
 	}
 
-	m.seekPct(p, 0)
+	m.positionQuick(p)
 
 	return nil
 }
 
-func (m *LibMPV) seekPct(p *mpv.Mpv, adjustment float64) error {
+func (m *LibMPV) positionQuick(p *mpv.Mpv) error {
+	_cur, err := p.GetProperty("time-pos", mpv.FORMAT_DOUBLE)
+	if err != nil {
+		return err
+	}
+
+	m.pos.timePos = _cur.(float64)
+
+	select {
+	case m.seekChan <- m.pos.Pos():
+	default:
+	}
+
+	return nil
+}
+
+func (m *LibMPV) position(p *mpv.Mpv) error {
 	_byteCur, err := p.GetProperty("stream-pos", mpv.FORMAT_DOUBLE)
 	if err != nil {
 		return err
@@ -165,26 +207,8 @@ func (m *LibMPV) seekPct(p *mpv.Mpv, adjustment float64) error {
 		bytePos = 1.0
 	}
 
-	if adjustment != 0 {
-		_pos, err := p.GetProperty("percent-pos", mpv.FORMAT_DOUBLE)
-		if err != nil {
-			return err
-		}
-		pos := _pos.(float64)
-		n := pos + adjustment
-		if n < 0 {
-			n = 0
-		}
-
-		p.SetProperty("percent-pos", mpv.FORMAT_DOUBLE, n)
-	}
-
-	select {
-	case m.seekChan <- bytePos:
-	default:
-	}
-
-	return nil
+	m.pos.timeEnd = float64(m.pos.timePos) / bytePos
+	return m.positionQuick(p)
 }
 
 func (m *LibMPV) adjustVolume(p *mpv.Mpv, adjustment float64) error {

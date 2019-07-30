@@ -10,6 +10,7 @@ import (
 	termbox "github.com/nsf/termbox-go"
 
 	"github.com/frizinak/ym/command"
+	"github.com/frizinak/ym/player"
 	"github.com/frizinak/ym/playlist"
 	"github.com/frizinak/ym/search"
 )
@@ -19,16 +20,39 @@ type status struct {
 	timeout time.Duration
 }
 
-func printSeeker(posChan <-chan float64, statusChan <-chan string) {
-	var pos float64
+func durationString(dur time.Duration, hours bool) string {
+	d := int64(dur.Seconds())
+	durH := d / 3600
+	durM := (d - durH*3600) / 60
+	durS := (d - durH*3600 - durM*60)
+	if !hours {
+		durM += durH * 60
+		return fmt.Sprintf("%02d:%02d", durM, durS)
+	}
+	return fmt.Sprintf("%02d:%02d:%02d", durH, durM, durS)
+}
+
+func printSeeker(posChan <-chan *player.Pos, statusChan <-chan string) {
+	var pos *player.Pos
 	var status string
 	print := func() {
 		w, h := termSize()
 		h -= 2
 		w -= runewidth.StringWidth(status) + 2
 
+		var time string
+		if pos != nil {
+			hours := pos.Dur.Hours() >= 1
+			time = fmt.Sprintf(
+				" [%s / %s]",
+				durationString(pos.Cur, hours),
+				durationString(pos.Dur, hours),
+			)
+			w -= runewidth.StringWidth(time)
+		}
+
 		rest, progress := "", ""
-		p := int(pos * float64(w+1))
+		p := int(pos.Pct() * float64(w+1))
 		for i := p; i > 0; i-- {
 			progress += "▬"
 		}
@@ -37,11 +61,12 @@ func printSeeker(posChan <-chan float64, statusChan <-chan string) {
 		}
 
 		fmt.Printf(
-			"\033[%d;0f\033[K\033[1;32m%s %s \033[0m%s\033[u",
+			"\033[%d;0f\033[K\033[1;32m%s %s \033[0m%s%s\033[u",
 			h,
 			progress,
 			status,
 			rest,
+			time,
 		)
 	}
 
