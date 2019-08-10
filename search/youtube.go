@@ -240,7 +240,7 @@ func match(u *url.URL, re *regexp.Regexp, trimPlaylist bool, to time.Duration) (
 				p.Query().Get("v"),
 				re,
 				p,
-				strings.TrimSpace(html.UnescapeString(string(matches[i][2]))),
+				strings.TrimSpace(html.UnescapeString(string(matches[i][3]))),
 				nil,
 			},
 		)
