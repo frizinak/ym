@@ -28,7 +28,7 @@ func (y *YoutubeInfo) PageURL() *url.URL       { return y.url }
 func (y *YoutubeInfo) Title() string           { return y.i.Title }
 func (y *YoutubeInfo) Created() time.Time      { return y.i.DatePublished }
 func (y *YoutubeInfo) Formats() []*Format      { return y.formats }
-func (y *YoutubeInfo) Author() string          { return y.i.Author }
+func (y *YoutubeInfo) Author() string          { return y.i.Uploader }
 func (y *YoutubeInfo) Duration() time.Duration { return y.i.Duration }
 
 type YoutubeResult struct {
@@ -54,10 +54,11 @@ func (y *YoutubeResult) DownloadURLs() (URLs, error) {
 		return nil, fmt.Errorf("No downloadable formats available")
 	}
 
+	c := ytdl.Client{HTTPClient: http.DefaultClient}
 	formats.Sort(ytdl.FormatAudioBitrateKey, true)
 	s := make(URLs, len(formats))
 	for i := range formats {
-		u, err := y.info.i.GetDownloadURL(formats[i])
+		u, err := c.GetDownloadURL(y.info.i, formats[i])
 		if err != nil {
 			return s, err
 		}
