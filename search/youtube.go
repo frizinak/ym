@@ -2,14 +2,16 @@ package search
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"html"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -45,6 +47,26 @@ func (y *YoutubeResult) PageURL() *url.URL { return y.url }
 func (y *YoutubeResult) IsPlayList() bool  { return y.url.Query().Get("list") != "" }
 
 func (y *YoutubeResult) DownloadURLs() (URLs, error) {
+	u, err := y.libDownloadURLs()
+	if len(u) == 0 {
+		return y.cliDownloadURLs()
+	}
+
+	return u, err
+}
+func (y *YoutubeResult) cliDownloadURLs() (URLs, error) {
+	cmd := exec.Command("youtube-dl", "-g", "-f", "bestaudio", y.PageURL().String())
+	buf := bytes.NewBuffer(nil)
+	cmd.Stdout = buf
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	u, err := url.Parse(strings.TrimSpace(buf.String()))
+	return URLs{u}, err
+}
+
+func (y *YoutubeResult) libDownloadURLs() (URLs, error) {
 	if err := y.getInfo(); err != nil {
 		return nil, err
 	}
@@ -56,13 +78,13 @@ func (y *YoutubeResult) DownloadURLs() (URLs, error) {
 
 	c := ytdl.Client{HTTPClient: http.DefaultClient}
 	formats.Sort(ytdl.FormatAudioBitrateKey, true)
-	s := make(URLs, len(formats))
+	s := make(URLs, 0, len(formats))
 	for i := range formats {
-		u, err := c.GetDownloadURL(y.info.i, formats[i])
+		u, err := c.GetDownloadURL(context.Background(), y.info.i, formats[i])
 		if err != nil {
-			return s, err
+			continue
 		}
-		s[i] = u
+		s = append(s, u)
 	}
 
 	return s, nil
@@ -102,7 +124,7 @@ func (y *YoutubeResult) getInfo() error {
 		return nil
 	}
 
-	vid, err := ytdl.GetVideoInfo(y.url)
+	vid, err := ytdl.GetVideoInfo(context.Background(), y.url)
 	if err != nil {
 		return err
 	}
@@ -162,7 +184,7 @@ type Youtube struct {
 }
 
 func NewYoutube(timeout time.Duration) (*Youtube, error) {
-	re, err := regexp.Compile(`<a.*href="(/watch[^"]+)"[^>]*?(?: title="([^"]+)"|[^>]*?>([^<>]+)</a)`)
+	re, err := regexp.Compile(`ytInitialData"\]\s*=\s*(\{.*\});`)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +227,17 @@ func (y *Youtube) Page(channel string) ([]Result, error) {
 	return match(u, y.re, false, y.timeout)
 }
 
+type ytInitialData struct {
+	Contents *ytRenderer `json:"contents"`
+}
+
+type ytRenderer struct {
+}
+
+func (yr *ytRenderer) UnmarshalJSON(d []byte) error {
+	return nil
+}
+
 func match(u *url.URL, re *regexp.Regexp, trimPlaylist bool, to time.Duration) ([]Result, error) {
 	res, err := (&http.Client{Timeout: to}).Get(u.String())
 	if err != nil {
@@ -217,35 +250,52 @@ func match(u *url.URL, re *regexp.Regexp, trimPlaylist bool, to time.Duration) (
 		return nil, err
 	}
 
-	matches := re.FindAllSubmatch(body, -1)
+	matches := re.FindSubmatch(body)
+	if len(matches) != 2 {
+		return nil, errors.New("regex doesnt match")
+	}
+	yt := make(map[string]interface{})
+	if err := json.Unmarshal(matches[1], &yt); err != nil {
+		return nil, err
+	}
 	results := make([]Result, 0, len(matches))
 
-	for i := range matches {
-		p, err := url.Parse(html.UnescapeString(string(matches[i][1])))
-		if err != nil {
-			continue
+	var s func(i interface{}) error
+	s = func(i interface{}) error {
+		switch v := i.(type) {
+		case map[string]interface{}:
+			vid, ok1 := v["videoId"]
+			title, ok2 := v["title"]
+			if ok1 && ok2 {
+				id := vid.(string)
+				runs := title.(map[string]interface{})["runs"].([]interface{})[0]
+				name := runs.(map[string]interface{})["text"].(string)
+				u, err := url.Parse(fmt.Sprintf("https://youtube.com/watch?v=%s", id))
+				if err != nil {
+					return err
+				}
+				results = append(
+					results,
+					&YoutubeResult{id, re, u, name, nil},
+				)
+				return nil
+			}
+
+			for i := range v {
+				if err := s(v[i]); err != nil {
+					return err
+				}
+			}
+		case []interface{}:
+			for _, it := range v {
+				if err := s(it); err != nil {
+					return err
+				}
+			}
 		}
 
-		p.Host = u.Host
-		p.Scheme = u.Scheme
-		if trimPlaylist {
-			q := p.Query()
-			q.Del("list")
-			q.Del("index")
-			p.RawQuery = q.Encode()
-		}
-
-		results = append(
-			results,
-			&YoutubeResult{
-				p.Query().Get("v"),
-				re,
-				p,
-				strings.TrimSpace(html.UnescapeString(string(matches[i][3]))),
-				nil,
-			},
-		)
+		return nil
 	}
 
-	return results, nil
+	return results, s(yt)
 }
